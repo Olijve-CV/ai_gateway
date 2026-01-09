@@ -1,0 +1,196 @@
+"""Anthropic format API routes."""
+
+import json
+
+from fastapi import APIRouter, Header, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from app.adapters.anthropic_adapter import AnthropicAdapter
+from app.adapters.gemini_adapter import GeminiAdapter
+from app.adapters.openai_adapter import OpenAIAdapter
+from app.converters import anthropic_to_gemini, anthropic_to_openai
+from app.models.anthropic import MessagesRequest
+
+router = APIRouter(prefix="/v1", tags=["Anthropic Format"])
+
+
+def get_target_provider(model: str) -> str:
+    """Determine target provider based on model name."""
+    model_lower = model.lower()
+    if model_lower.startswith(("gpt-", "o1", "o3")):
+        return "openai"
+    elif model_lower.startswith("claude"):
+        return "anthropic"
+    elif model_lower.startswith("gemini"):
+        return "gemini"
+    else:
+        return "anthropic"
+
+
+def extract_api_key(authorization: str | None, x_api_key: str | None) -> str:
+    """Extract API key from headers."""
+    if x_api_key:
+        return x_api_key
+    if authorization:
+        if authorization.startswith("Bearer "):
+            return authorization[7:]
+        return authorization
+    raise ValueError("API key is required (x-api-key or Authorization header)")
+
+
+@router.post("/messages")
+async def messages(
+    request: Request,
+    authorization: str | None = Header(None),
+    x_api_key: str | None = Header(None),
+):
+    """Anthropic-compatible messages endpoint."""
+    body = await request.json()
+    req = MessagesRequest(**body)
+    api_key = extract_api_key(authorization, x_api_key)
+    provider = get_target_provider(req.model)
+
+    if provider == "anthropic":
+        return await _handle_anthropic(req, api_key)
+    elif provider == "openai":
+        return await _handle_openai(req, api_key)
+    elif provider == "gemini":
+        return await _handle_gemini(req, api_key)
+
+
+async def _handle_anthropic(req: MessagesRequest, api_key: str):
+    """Handle request to Anthropic directly."""
+    adapter = AnthropicAdapter(api_key)
+    request_data = req.model_dump(exclude_none=True)
+
+    if req.stream:
+        async def generate():
+            async for chunk in adapter.messages_stream(request_data):
+                yield chunk
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
+    else:
+        result, status_code = await adapter.messages(request_data)
+        return JSONResponse(content=result, status_code=status_code)
+
+
+async def _handle_openai(req: MessagesRequest, api_key: str):
+    """Handle request to OpenAI with format conversion."""
+    adapter = OpenAIAdapter(api_key)
+
+    openai_req = anthropic_to_openai.convert_request(req)
+    request_data = openai_req.model_dump(exclude_none=True)
+
+    if req.stream:
+        async def generate():
+            initial_event = {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_temp",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": req.model,
+                    "content": [],
+                    "stop_reason": None,
+                    "usage": {"input_tokens": 0, "output_tokens": 0},
+                },
+            }
+            yield f"event: message_start\ndata: {json.dumps(initial_event)}\n\n".encode()
+
+            block_start = {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            }
+            yield f"event: content_block_start\ndata: {json.dumps(block_start)}\n\n".encode()
+
+            buffer = ""
+            async for chunk in adapter.chat_completions_stream(request_data):
+                buffer += chunk.decode("utf-8")
+                while "\n\n" in buffer:
+                    line, buffer = buffer.split("\n\n", 1)
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data.strip() and data.strip() != "[DONE]":
+                            try:
+                                event = json.loads(data)
+                                converted = anthropic_to_openai.convert_stream_chunk(event)
+                                if converted:
+                                    yield converted.encode()
+                            except json.JSONDecodeError:
+                                pass
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
+    else:
+        result, status_code = await adapter.chat_completions(request_data)
+        if status_code >= 400:
+            return JSONResponse(content=result, status_code=status_code)
+
+        from app.models.openai import ChatCompletionResponse
+
+        openai_resp = ChatCompletionResponse(**result)
+        anthropic_resp = anthropic_to_openai.convert_response(openai_resp)
+        return JSONResponse(content=anthropic_resp.model_dump(exclude_none=True))
+
+
+async def _handle_gemini(req: MessagesRequest, api_key: str):
+    """Handle request to Gemini with format conversion."""
+    adapter = GeminiAdapter(api_key)
+
+    gemini_req, model = anthropic_to_gemini.convert_request(req)
+    request_data = gemini_req.model_dump(exclude_none=True)
+    gemini_model = req.model
+
+    if req.stream:
+        async def generate():
+            msg_id = f"msg_{id(req)}"
+            initial_event = {
+                "type": "message_start",
+                "message": {
+                    "id": msg_id,
+                    "type": "message",
+                    "role": "assistant",
+                    "model": req.model,
+                    "content": [],
+                    "stop_reason": None,
+                    "usage": {"input_tokens": 0, "output_tokens": 0},
+                },
+            }
+            yield f"event: message_start\ndata: {json.dumps(initial_event)}\n\n".encode()
+
+            block_start = {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            }
+            yield f"event: content_block_start\ndata: {json.dumps(block_start)}\n\n".encode()
+
+            buffer = ""
+            async for chunk in adapter.generate_content_stream(gemini_model, request_data):
+                buffer += chunk.decode("utf-8")
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data.strip():
+                            try:
+                                event = json.loads(data)
+                                converted = anthropic_to_gemini.convert_stream_chunk(
+                                    event, msg_id
+                                )
+                                if converted:
+                                    yield converted.encode()
+                            except json.JSONDecodeError:
+                                pass
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
+    else:
+        result, status_code = await adapter.generate_content(gemini_model, request_data)
+        if status_code >= 400:
+            return JSONResponse(content=result, status_code=status_code)
+
+        from app.models.gemini import GenerateContentResponse
+
+        gemini_resp = GenerateContentResponse(**result)
+        anthropic_resp = anthropic_to_gemini.convert_response(gemini_resp, req.model)
+        return JSONResponse(content=anthropic_resp.model_dump(exclude_none=True))
