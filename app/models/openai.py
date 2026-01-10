@@ -73,6 +73,20 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: str | dict | None = None
     user: str | None = None
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "model": "gpt-4o",
+                    "messages": [
+                        {"role": "user", "content": "Hello, how are you?"}
+                    ],
+                    "max_tokens": 1024
+                }
+            ]
+        }
+    }
+
 
 # ============ Response Models ============
 

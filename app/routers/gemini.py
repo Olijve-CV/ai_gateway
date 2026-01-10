@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.adapters.anthropic_adapter import AnthropicAdapter
@@ -12,6 +12,19 @@ from app.converters import gemini_to_anthropic, gemini_to_openai
 from app.models.gemini import GenerateContentRequest
 
 router = APIRouter(prefix="/v1", tags=["Gemini Format"])
+
+# Example request body for Swagger documentation
+GENERATE_CONTENT_EXAMPLE = {
+    "contents": [
+        {
+            "role": "user",
+            "parts": [{"text": "Hello, how are you?"}]
+        }
+    ],
+    "generationConfig": {
+        "maxOutputTokens": 1024
+    }
+}
 
 
 def get_target_provider(model: str) -> str:
@@ -30,12 +43,16 @@ def get_target_provider(model: str) -> str:
 @router.post("/models/{model}:generateContent")
 async def generate_content(
     model: str,
-    request: Request,
+    req: GenerateContentRequest = Body(..., openapi_examples={"default": {"value": GENERATE_CONTENT_EXAMPLE}}),
     key: str = Query(..., description="API Key"),
 ):
-    """Gemini-compatible generateContent endpoint."""
-    body = await request.json()
-    req = GenerateContentRequest(**body)
+    """Gemini-compatible generateContent endpoint.
+
+    Automatically routes to the correct provider based on model name:
+    - gpt-*, o1, o3 → OpenAI
+    - claude-* → Anthropic
+    - gemini-* → Gemini
+    """
     provider = get_target_provider(model)
 
     if provider == "gemini":
@@ -49,13 +66,17 @@ async def generate_content(
 @router.post("/models/{model}:streamGenerateContent")
 async def stream_generate_content(
     model: str,
-    request: Request,
+    req: GenerateContentRequest = Body(..., openapi_examples={"default": {"value": GENERATE_CONTENT_EXAMPLE}}),
     key: str = Query(..., description="API Key"),
     alt: str = Query("sse", description="Response format"),
 ):
-    """Gemini-compatible streamGenerateContent endpoint."""
-    body = await request.json()
-    req = GenerateContentRequest(**body)
+    """Gemini-compatible streamGenerateContent endpoint.
+
+    Automatically routes to the correct provider based on model name:
+    - gpt-*, o1, o3 → OpenAI
+    - claude-* → Anthropic
+    - gemini-* → Gemini
+    """
     provider = get_target_provider(model)
 
     if provider == "gemini":

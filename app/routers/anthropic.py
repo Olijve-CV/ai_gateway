@@ -1,8 +1,9 @@
 """Anthropic format API routes."""
 
 import json
+from typing import Any
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Body, Header
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.adapters.anthropic_adapter import AnthropicAdapter
@@ -12,6 +13,15 @@ from app.converters import anthropic_to_gemini, anthropic_to_openai
 from app.models.anthropic import MessagesRequest
 
 router = APIRouter(prefix="/v1", tags=["Anthropic Format"])
+
+# Example request body for Swagger documentation
+MESSAGES_REQUEST_EXAMPLE = {
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello, how are you?"}
+    ]
+}
 
 
 def get_target_provider(model: str) -> str:
@@ -40,13 +50,17 @@ def extract_api_key(authorization: str | None, x_api_key: str | None) -> str:
 
 @router.post("/messages")
 async def messages(
-    request: Request,
+    req: MessagesRequest = Body(..., openapi_examples={"default": {"value": MESSAGES_REQUEST_EXAMPLE}}),
     authorization: str | None = Header(None),
-    x_api_key: str | None = Header(None),
+    x_api_key: str | None = Header(None, alias="x-api-key"),
 ):
-    """Anthropic-compatible messages endpoint."""
-    body = await request.json()
-    req = MessagesRequest(**body)
+    """Anthropic-compatible messages endpoint.
+
+    Automatically routes to the correct provider based on model name:
+    - gpt-*, o1, o3 → OpenAI
+    - claude-* → Anthropic
+    - gemini-* → Gemini
+    """
     api_key = extract_api_key(authorization, x_api_key)
     provider = get_target_provider(req.model)
 

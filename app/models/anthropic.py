@@ -81,6 +81,20 @@ class MessagesRequest(BaseModel):
     tools: list[ToolDefinition] | None = None
     tool_choice: ToolChoice | None = None
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "model": "claude-3-5-sonnet-20241022",
+                    "max_tokens": 1024,
+                    "messages": [
+                        {"role": "user", "content": "Hello, how are you?"}
+                    ]
+                }
+            ]
+        }
+    }
+
 
 # ============ Response Models ============
 

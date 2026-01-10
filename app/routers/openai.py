@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Body, Header
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.adapters.anthropic_adapter import AnthropicAdapter
@@ -12,6 +12,15 @@ from app.converters import openai_to_anthropic, openai_to_gemini
 from app.models.openai import ChatCompletionRequest
 
 router = APIRouter(prefix="/v1", tags=["OpenAI Format"])
+
+# Example request body for Swagger documentation
+CHAT_COMPLETION_EXAMPLE = {
+    "model": "gpt-4o",
+    "messages": [
+        {"role": "user", "content": "Hello, how are you?"}
+    ],
+    "max_tokens": 1024
+}
 
 
 def get_target_provider(model: str) -> str:
@@ -38,12 +47,16 @@ def extract_api_key(authorization: str | None) -> str:
 
 @router.post("/chat/completions")
 async def chat_completions(
-    request: Request,
+    req: ChatCompletionRequest = Body(..., openapi_examples={"default": {"value": CHAT_COMPLETION_EXAMPLE}}),
     authorization: str | None = Header(None),
 ):
-    """OpenAI-compatible chat completions endpoint."""
-    body = await request.json()
-    req = ChatCompletionRequest(**body)
+    """OpenAI-compatible chat completions endpoint.
+
+    Automatically routes to the correct provider based on model name:
+    - gpt-*, o1, o3 → OpenAI
+    - claude-* → Anthropic
+    - gemini-* → Gemini
+    """
     api_key = extract_api_key(authorization)
     provider = get_target_provider(req.model)
 

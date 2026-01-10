@@ -9,9 +9,9 @@ from app.utils.http_client import post_request, stream_request
 class OpenAIAdapter:
     """Adapter for OpenAI API."""
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, base_url: str | None = None):
         self.api_key = api_key
-        self.base_url = settings.openai_base_url
+        self.base_url = base_url or settings.openai_base_url
 
     def _get_headers(self) -> dict[str, str]:
         return {

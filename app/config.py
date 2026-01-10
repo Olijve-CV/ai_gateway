@@ -1,3 +1,5 @@
+import secrets
+
 from pydantic_settings import BaseSettings
 
 
@@ -15,6 +17,17 @@ class Settings(BaseSettings):
 
     # Timeouts (seconds)
     request_timeout: float = 300.0
+
+    # Database
+    database_url: str = "sqlite+aiosqlite:///./data/ai_gateway.db"
+
+    # JWT Authentication
+    jwt_secret: str = secrets.token_urlsafe(32)
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60
+
+    # API Key Encryption (32 bytes for AES-256)
+    encryption_key: str = secrets.token_urlsafe(32)
 
     class Config:
         env_file = ".env"

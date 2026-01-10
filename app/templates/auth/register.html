@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}注册 - AI Gateway{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>AI Gateway</h1>
+            <p>统一 AI API 网关</p>
+        </div>
+
+        <h2>注册</h2>
+
+        <div id="error-message" class="alert alert-error" style="display: none;"></div>
+
+        <form id="register-form" class="auth-form">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" required
+                       placeholder="输入用户名" minlength="3" maxlength="50">
+            </div>
+
+            <div class="form-group">
+                <label for="email">邮箱</label>
+                <input type="email" id="email" name="email" required placeholder="your@email.com">
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" required
+                       placeholder="至少6位密码" minlength="6">
+            </div>
+
+            <div class="form-group">
+                <label for="confirm-password">确认密码</label>
+                <input type="password" id="confirm-password" name="confirm-password" required
+                       placeholder="再次输入密码">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">注册</button>
+        </form>
+
+        <div class="auth-footer">
+            <p>已有账户？<a href="/login">立即登录</a></p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorDiv = document.getElementById('error-message');
+    errorDiv.style.display = 'none';
+
+    const username = document.getElementById('username').value;
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+
+    if (password !== confirmPassword) {
+        errorDiv.textContent = '两次输入的密码不一致';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            localStorage.setItem('token', data.access_token);
+            window.location.href = '/dashboard';
+        } else {
+            errorDiv.textContent = data.detail || '注册失败';
+            errorDiv.style.display = 'block';
+        }
+    } catch (error) {
+        errorDiv.textContent = '网络错误，请重试';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}
