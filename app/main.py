@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import init_db
 from app.routers import anthropic, gemini, openai
-from app.routers import auth, config_api, pages
+from app.routers import api_key, auth, config_api, pages
 
 
 @asynccontextmanager
@@ -67,6 +67,7 @@ app.include_router(gemini.router)
 # Include auth and config routers
 app.include_router(auth.router)
 app.include_router(config_api.router)
+app.include_router(api_key.router)
 
 # Include page routers
 app.include_router(pages.router)

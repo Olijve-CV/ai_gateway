@@ -2,14 +2,19 @@
 
 import json
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.anthropic_adapter import AnthropicAdapter
 from app.adapters.gemini_adapter import GeminiAdapter
 from app.adapters.openai_adapter import OpenAIAdapter
 from app.converters import gemini_to_anthropic, gemini_to_openai
+from app.dependencies.auth import AuthResult, get_auth_context
+from app.dependencies.database import get_db
 from app.models.gemini import GenerateContentRequest
+from app.services.api_key_service import ApiKeyService
+from app.services.config_service import ConfigService
 
 router = APIRouter(prefix="/v1", tags=["Gemini Format"])
 
@@ -42,11 +47,17 @@ def get_target_provider(model: str) -> str:
 
 @router.post("/models/{model}:generateContent")
 async def generate_content(
+    request: Request,
     model: str,
     req: GenerateContentRequest = Body(..., openapi_examples={"default": {"value": GENERATE_CONTENT_EXAMPLE}}),
-    key: str = Query(..., description="API Key"),
+    auth: AuthResult = Depends(get_auth_context),
+    db: AsyncSession = Depends(get_db),
 ):
     """Gemini-compatible generateContent endpoint.
+
+    Authentication:
+    - API Key (recommended): Authorization: Bearer agw_xxxxx or X-API-Key: agw_xxxxx
+    - JWT Token: Authorization: Bearer <jwt_token>
 
     Automatically routes to the correct provider based on model name:
     - gpt-*, o1, o3 → OpenAI
@@ -55,22 +66,71 @@ async def generate_content(
     """
     provider = get_target_provider(model)
 
+    # Get provider credentials
+    if auth.provider_config:
+        # API Key authentication - use associated config
+        if auth.provider_config.provider != provider:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": 400,
+                        "message": f"Model {model} requires {provider} provider, "
+                        f"but API Key is configured for {auth.provider_config.provider}",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            )
+        base_url, api_key = auth.get_provider_credentials()
+    else:
+        # JWT authentication - use user's default config
+        config_service = ConfigService(db)
+        result = await config_service.get_default_config(auth.user, provider)
+        if not result:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": 400,
+                        "message": f"No active {provider} configuration found. "
+                        "Please configure your API key first.",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            )
+        base_url, api_key = result
+
+    # Execute request
     if provider == "gemini":
-        return await _handle_gemini(req, model, key)
+        response = await _handle_gemini(req, model, api_key, base_url)
     elif provider == "openai":
-        return await _handle_openai(req, model, key)
+        response = await _handle_openai(req, model, api_key, base_url)
     elif provider == "anthropic":
-        return await _handle_anthropic(req, model, key)
+        response = await _handle_anthropic(req, model, api_key, base_url)
+    else:
+        response = await _handle_gemini(req, model, api_key, base_url)
+
+    # Record usage (if API Key authentication)
+    if auth.api_key and hasattr(request.state, "api_key"):
+        await _record_usage(db, request.state.api_key, model, response)
+
+    return response
 
 
 @router.post("/models/{model}:streamGenerateContent")
 async def stream_generate_content(
+    request: Request,
     model: str,
     req: GenerateContentRequest = Body(..., openapi_examples={"default": {"value": GENERATE_CONTENT_EXAMPLE}}),
-    key: str = Query(..., description="API Key"),
+    auth: AuthResult = Depends(get_auth_context),
+    db: AsyncSession = Depends(get_db),
     alt: str = Query("sse", description="Response format"),
 ):
     """Gemini-compatible streamGenerateContent endpoint.
+
+    Authentication:
+    - API Key (recommended): Authorization: Bearer agw_xxxxx or X-API-Key: agw_xxxxx
+    - JWT Token: Authorization: Bearer <jwt_token>
 
     Automatically routes to the correct provider based on model name:
     - gpt-*, o1, o3 → OpenAI
@@ -79,25 +139,62 @@ async def stream_generate_content(
     """
     provider = get_target_provider(model)
 
+    # Get provider credentials
+    if auth.provider_config:
+        # API Key authentication - use associated config
+        if auth.provider_config.provider != provider:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": 400,
+                        "message": f"Model {model} requires {provider} provider, "
+                        f"but API Key is configured for {auth.provider_config.provider}",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            )
+        base_url, api_key = auth.get_provider_credentials()
+    else:
+        # JWT authentication - use user's default config
+        config_service = ConfigService(db)
+        result = await config_service.get_default_config(auth.user, provider)
+        if not result:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": 400,
+                        "message": f"No active {provider} configuration found. "
+                        "Please configure your API key first.",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            )
+        base_url, api_key = result
+
+    # Execute streaming request
     if provider == "gemini":
-        return await _handle_gemini_stream(req, model, key)
+        return await _handle_gemini_stream(req, model, api_key, base_url)
     elif provider == "openai":
-        return await _handle_openai_stream(req, model, key)
+        return await _handle_openai_stream(req, model, api_key, base_url)
     elif provider == "anthropic":
-        return await _handle_anthropic_stream(req, model, key)
+        return await _handle_anthropic_stream(req, model, api_key, base_url)
+    else:
+        return await _handle_gemini_stream(req, model, api_key, base_url)
 
 
-async def _handle_gemini(req: GenerateContentRequest, model: str, api_key: str):
+async def _handle_gemini(req: GenerateContentRequest, model: str, api_key: str, base_url: str):
     """Handle request to Gemini directly."""
-    adapter = GeminiAdapter(api_key)
+    adapter = GeminiAdapter(api_key, base_url)
     request_data = req.model_dump(exclude_none=True)
     result, status_code = await adapter.generate_content(model, request_data)
     return JSONResponse(content=result, status_code=status_code)
 
 
-async def _handle_gemini_stream(req: GenerateContentRequest, model: str, api_key: str):
+async def _handle_gemini_stream(req: GenerateContentRequest, model: str, api_key: str, base_url: str):
     """Handle streaming request to Gemini directly."""
-    adapter = GeminiAdapter(api_key)
+    adapter = GeminiAdapter(api_key, base_url)
     request_data = req.model_dump(exclude_none=True)
 
     async def generate():
@@ -107,9 +204,9 @@ async def _handle_gemini_stream(req: GenerateContentRequest, model: str, api_key
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-async def _handle_openai(req: GenerateContentRequest, model: str, api_key: str):
+async def _handle_openai(req: GenerateContentRequest, model: str, api_key: str, base_url: str):
     """Handle request to OpenAI with format conversion."""
-    adapter = OpenAIAdapter(api_key)
+    adapter = OpenAIAdapter(api_key, base_url)
 
     openai_req = gemini_to_openai.convert_request(req)
     openai_req.model = model
@@ -126,9 +223,9 @@ async def _handle_openai(req: GenerateContentRequest, model: str, api_key: str):
     return JSONResponse(content=gemini_resp.model_dump(exclude_none=True))
 
 
-async def _handle_openai_stream(req: GenerateContentRequest, model: str, api_key: str):
+async def _handle_openai_stream(req: GenerateContentRequest, model: str, api_key: str, base_url: str):
     """Handle streaming request to OpenAI with format conversion."""
-    adapter = OpenAIAdapter(api_key)
+    adapter = OpenAIAdapter(api_key, base_url)
 
     openai_req = gemini_to_openai.convert_request(req)
     openai_req.model = model
@@ -155,9 +252,9 @@ async def _handle_openai_stream(req: GenerateContentRequest, model: str, api_key
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-async def _handle_anthropic(req: GenerateContentRequest, model: str, api_key: str):
+async def _handle_anthropic(req: GenerateContentRequest, model: str, api_key: str, base_url: str):
     """Handle request to Anthropic with format conversion."""
-    adapter = AnthropicAdapter(api_key)
+    adapter = AnthropicAdapter(api_key, base_url)
 
     anthropic_req = gemini_to_anthropic.convert_request(req)
     anthropic_req.model = model
@@ -174,9 +271,9 @@ async def _handle_anthropic(req: GenerateContentRequest, model: str, api_key: st
     return JSONResponse(content=gemini_resp.model_dump(exclude_none=True))
 
 
-async def _handle_anthropic_stream(req: GenerateContentRequest, model: str, api_key: str):
+async def _handle_anthropic_stream(req: GenerateContentRequest, model: str, api_key: str, base_url: str):
     """Handle streaming request to Anthropic with format conversion."""
-    adapter = AnthropicAdapter(api_key)
+    adapter = AnthropicAdapter(api_key, base_url)
 
     anthropic_req = gemini_to_anthropic.convert_request(req)
     anthropic_req.model = model
@@ -202,3 +299,38 @@ async def _handle_anthropic_stream(req: GenerateContentRequest, model: str, api_
                                 pass
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+async def _record_usage(
+    db: AsyncSession,
+    api_key,
+    model: str,
+    response,
+) -> None:
+    """Record API usage."""
+    service = ApiKeyService(db)
+
+    # Extract token usage (from response)
+    prompt_tokens = 0
+    completion_tokens = 0
+    status_code = 200
+
+    if isinstance(response, JSONResponse):
+        # Non-streaming response, can get usage directly
+        try:
+            body = response.body.decode()
+            data = json.loads(body)
+            usage_metadata = data.get("usageMetadata", {})
+            prompt_tokens = usage_metadata.get("promptTokenCount", 0)
+            completion_tokens = usage_metadata.get("candidatesTokenCount", 0)
+        except Exception:
+            pass
+
+    await service.record_usage(
+        api_key=api_key,
+        endpoint="/v1/models/:generateContent",
+        model=model,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        status_code=status_code,
+    )
