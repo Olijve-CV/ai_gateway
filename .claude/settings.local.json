@@ -7,7 +7,17 @@
       "Bash(pip install:*)",
       "Bash(uvicorn:*)",
       "Bash(timeout /t 3 /nobreak)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(tree:*)",
+      "Bash(timeout 8 python:*)",
+      "Bash(python:*)",
+      "Bash(taskkill:*)",
+      "Bash(taskkill /F /PID 71492)",
+      "Bash(timeout /t 2 /nobreak)",
+      "Bash(timeout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ]
   }
 }
