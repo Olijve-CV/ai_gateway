@@ -2,7 +2,6 @@ package converters
 
 import (
 	"encoding/json"
-	"time"
 
 	"ai_gateway/internal/models"
 )

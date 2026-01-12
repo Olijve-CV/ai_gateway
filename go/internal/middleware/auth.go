@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"ai_gateway/internal/config"
 	"ai_gateway/internal/database"
@@ -136,7 +137,7 @@ func authenticateWithAPIKey(c echo.Context, db *gorm.DB, cfg *config.Config, api
 	}
 
 	// Check expiration
-	if apiKey.ExpiresAt != nil && apiKey.ExpiresAt.Before(c.Request().Context().Err() != nil) {
+	if apiKey.ExpiresAt != nil && apiKey.ExpiresAt.Before(time.Now()) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "API key has expired")
 	}
 
