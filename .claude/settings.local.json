@@ -17,7 +17,13 @@
       "Bash(timeout:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Skill(ralph-loop:ralph-loop)",
+      "Skill(ralph-loop:help)",
+      "Bash(wsl:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(cmd /c \"if exist D:\\\\ \\(echo D drive exists\\) else \\(echo D drive not found\\)\")",
+      "Bash(cmd /c \"dir D:\\\\ /b 2>nul && echo D_EXISTS || echo D_NOT_FOUND\")"
     ]
   }
 }

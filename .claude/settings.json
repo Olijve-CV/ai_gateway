@@ -1,5 +1,11 @@
 {
   "enabledPlugins": {
     "ralph-loop@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(C:\\Users\\ezeeship\\.claude\\plugins\\cache\\:*)",
+      "Bash(C:/Users/ezeeship/.claude/plugins/cache/:*)"
+    ]
   }
 }
