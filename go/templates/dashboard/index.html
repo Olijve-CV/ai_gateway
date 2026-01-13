@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘 - AI Gateway</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <a href="/dashboard">AI Gateway</a>
+        </div>
+        <div class="navbar-menu">
+            <a href="/dashboard" class="nav-link active">仪表盘</a>
+            <a href="/dashboard/providers" class="nav-link">服务配置</a>
+            <span class="navbar-user" id="username-display"></span>
+            <a href="/logout" class="btn btn-outline">退出</a>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="dashboard-container">
+            <h1>欢迎使用 AI Gateway</h1>
+
+            <div class="cards-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>服务配置</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>配置 OpenAI、Anthropic、Gemini 的 API 端点和密钥</p>
+                        <a href="/dashboard/providers" class="btn btn-primary">管理配置</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>快速开始</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>使用以下端点访问 AI API：</p>
+                        <ul class="endpoint-list">
+                            <li><code>POST /v1/chat/completions</code> - OpenAI 格式</li>
+                            <li><code>POST /v1/messages</code> - Anthropic 格式</li>
+                            <li><code>POST /v1/models/{model}:generateContent</code> - Gemini 格式</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>API 文档</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>查看完整的 API 文档</p>
+                        <a href="/docs" class="btn btn-outline" target="_blank">打开文档</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/main.js"></script>
+    <script>
+    async function loadUser() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const user = await response.json();
+                document.getElementById('username-display').textContent = user.username;
+            } else {
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+            }
+        } catch (error) {
+            console.error('Failed to load user:', error);
+        }
+    }
+
+    loadUser();
+    </script>
+</body>
+</html>

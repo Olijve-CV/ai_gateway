@@ -35,6 +35,13 @@ func main() {
 	e := echo.New()
 	e.HideBanner = true
 
+	// Setup template renderer
+	renderer := handlers.NewTemplateRenderer("templates")
+	e.Renderer = renderer
+
+	// Static files
+	e.Static("/static", "static")
+
 	// Middleware
 	e.Use(echomw.Logger())
 	e.Use(echomw.Recover())
@@ -95,6 +102,13 @@ func main() {
 	v1.POST("/chat/completions", h.OpenAIChatCompletions)
 	v1.POST("/messages", h.AnthropicMessages)
 	v1.POST("/models/:model", h.GeminiGenerateContent)
+
+	// Page routes (public)
+	e.GET("/login", h.LoginPage)
+	e.GET("/register", h.RegisterPage)
+	e.GET("/dashboard", h.DashboardPage)
+	e.GET("/dashboard/providers", h.ProvidersPage)
+	e.GET("/logout", h.LogoutPage)
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)

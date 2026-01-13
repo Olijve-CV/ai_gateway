@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - AI Gateway</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <main class="main-content">
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h1>AI Gateway</h1>
+                    <p>统一 AI API 网关</p>
+                </div>
+
+                <h2>登录</h2>
+
+                <div id="error-message" class="alert alert-error" style="display: none;"></div>
+
+                <form id="login-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="email">邮箱</label>
+                        <input type="email" id="email" name="email" required placeholder="your@email.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">密码</label>
+                        <input type="password" id="password" name="password" required placeholder="输入密码">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block">登录</button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>还没有账户？<a href="/register">立即注册</a></p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/main.js"></script>
+    <script>
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.style.display = 'none';
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                localStorage.setItem('token', data.access_token);
+                window.location.href = '/dashboard';
+            } else {
+                errorDiv.textContent = data.message || '登录失败';
+                errorDiv.style.display = 'block';
+            }
+        } catch (error) {
+            errorDiv.textContent = '网络错误，请重试';
+            errorDiv.style.display = 'block';
+        }
+    });
+    </script>
+</body>
+</html>
