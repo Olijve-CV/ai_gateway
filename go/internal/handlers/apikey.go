@@ -5,15 +5,23 @@ import (
 	"strconv"
 	"time"
 
+	"ai_gateway/internal/database"
 	"ai_gateway/internal/middleware"
 	"ai_gateway/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
 
+// ProviderConfigInfo represents provider config info in API response
+type ProviderConfigInfo struct {
+	ID       uint   `json:"id"`
+	Provider string `json:"provider"`
+	Name     string `json:"name"`
+}
+
 // APIKeyCreateRequest represents an API key creation request
 type APIKeyCreateRequest struct {
-	ProviderConfigID    uint       `json:"provider_config_id"`
+	ProviderConfigIDs   []uint     `json:"provider_config_ids"`
 	Name                string     `json:"name"`
 	ExpiresAt           *time.Time `json:"expires_at"`
 	DailyRequestLimit   *int       `json:"daily_request_limit"`
@@ -27,6 +35,7 @@ type APIKeyUpdateRequest struct {
 	Name                *string    `json:"name"`
 	ExpiresAt           *time.Time `json:"expires_at"`
 	IsActive            *bool      `json:"is_active"`
+	ProviderConfigIDs   []uint     `json:"provider_config_ids"`
 	DailyRequestLimit   *int       `json:"daily_request_limit"`
 	MonthlyRequestLimit *int       `json:"monthly_request_limit"`
 	DailyTokenLimit     *int       `json:"daily_token_limit"`
@@ -35,27 +44,61 @@ type APIKeyUpdateRequest struct {
 
 // APIKeyResponse represents an API key response
 type APIKeyResponse struct {
-	ID                  uint       `json:"id"`
-	Name                string     `json:"name"`
-	KeyPrefix           string     `json:"key_prefix"`
-	ProviderConfigID    uint       `json:"provider_config_id"`
-	ExpiresAt           *time.Time `json:"expires_at"`
-	IsActive            bool       `json:"is_active"`
-	DailyRequestLimit   *int       `json:"daily_request_limit"`
-	MonthlyRequestLimit *int       `json:"monthly_request_limit"`
-	DailyTokenLimit     *int       `json:"daily_token_limit"`
-	MonthlyTokenLimit   *int       `json:"monthly_token_limit"`
-	DailyRequestsUsed   int        `json:"daily_requests_used"`
-	MonthlyRequestsUsed int        `json:"monthly_requests_used"`
-	DailyTokensUsed     int        `json:"daily_tokens_used"`
-	MonthlyTokensUsed   int        `json:"monthly_tokens_used"`
-	CreatedAt           time.Time  `json:"created_at"`
+	ID                  uint                 `json:"id"`
+	Name                string               `json:"name"`
+	KeyPrefix           string               `json:"key_prefix"`
+	ProviderConfigs     []ProviderConfigInfo `json:"provider_configs"`
+	ExpiresAt           *time.Time           `json:"expires_at"`
+	IsActive            bool                 `json:"is_active"`
+	DailyRequestLimit   *int                 `json:"daily_request_limit"`
+	MonthlyRequestLimit *int                 `json:"monthly_request_limit"`
+	DailyTokenLimit     *int                 `json:"daily_token_limit"`
+	MonthlyTokenLimit   *int                 `json:"monthly_token_limit"`
+	DailyRequestsUsed   int                  `json:"daily_requests_used"`
+	MonthlyRequestsUsed int                  `json:"monthly_requests_used"`
+	DailyTokensUsed     int                  `json:"daily_tokens_used"`
+	MonthlyTokensUsed   int                  `json:"monthly_tokens_used"`
+	CreatedAt           time.Time            `json:"created_at"`
 }
 
 // APIKeyCreateResponse includes the full key (only shown once)
 type APIKeyCreateResponse struct {
 	APIKeyResponse
 	Key string `json:"key"`
+}
+
+// toProviderConfigInfos converts database ProviderConfigs to ProviderConfigInfo slice
+func toProviderConfigInfos(configs []database.ProviderConfig) []ProviderConfigInfo {
+	result := make([]ProviderConfigInfo, len(configs))
+	for i, cfg := range configs {
+		result[i] = ProviderConfigInfo{
+			ID:       cfg.ID,
+			Provider: cfg.Provider,
+			Name:     cfg.Name,
+		}
+	}
+	return result
+}
+
+// toAPIKeyResponse converts database APIKey to APIKeyResponse
+func toAPIKeyResponse(key *database.APIKey) APIKeyResponse {
+	return APIKeyResponse{
+		ID:                  key.ID,
+		Name:                key.Name,
+		KeyPrefix:           key.KeyPrefix,
+		ProviderConfigs:     toProviderConfigInfos(key.ProviderConfigs),
+		ExpiresAt:           key.ExpiresAt,
+		IsActive:            key.IsActive,
+		DailyRequestLimit:   key.DailyRequestLimit,
+		MonthlyRequestLimit: key.MonthlyRequestLimit,
+		DailyTokenLimit:     key.DailyTokenLimit,
+		MonthlyTokenLimit:   key.MonthlyTokenLimit,
+		DailyRequestsUsed:   key.DailyRequestsUsed,
+		MonthlyRequestsUsed: key.MonthlyRequestsUsed,
+		DailyTokensUsed:     key.DailyTokensUsed,
+		MonthlyTokensUsed:   key.MonthlyTokensUsed,
+		CreatedAt:           key.CreatedAt,
+	}
 }
 
 // ListAPIKeys returns all API keys for the current user
@@ -72,23 +115,7 @@ func (h *Handler) ListAPIKeys(c echo.Context) error {
 
 	var response []APIKeyResponse
 	for _, key := range keys {
-		response = append(response, APIKeyResponse{
-			ID:                  key.ID,
-			Name:                key.Name,
-			KeyPrefix:           key.KeyPrefix,
-			ProviderConfigID:    key.ProviderConfigID,
-			ExpiresAt:           key.ExpiresAt,
-			IsActive:            key.IsActive,
-			DailyRequestLimit:   key.DailyRequestLimit,
-			MonthlyRequestLimit: key.MonthlyRequestLimit,
-			DailyTokenLimit:     key.DailyTokenLimit,
-			MonthlyTokenLimit:   key.MonthlyTokenLimit,
-			DailyRequestsUsed:   key.DailyRequestsUsed,
-			MonthlyRequestsUsed: key.MonthlyRequestsUsed,
-			DailyTokensUsed:     key.DailyTokensUsed,
-			MonthlyTokensUsed:   key.MonthlyTokensUsed,
-			CreatedAt:           key.CreatedAt,
-		})
+		response = append(response, toAPIKeyResponse(&key))
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -106,12 +133,12 @@ func (h *Handler) CreateAPIKey(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	if req.ProviderConfigID == 0 || req.Name == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "provider_config_id and name are required")
+	if len(req.ProviderConfigIDs) == 0 || req.Name == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "provider_config_ids and name are required")
 	}
 
 	serviceReq := &services.APIKeyCreate{
-		ProviderConfigID:    req.ProviderConfigID,
+		ProviderConfigIDs:   req.ProviderConfigIDs,
 		Name:                req.Name,
 		ExpiresAt:           req.ExpiresAt,
 		DailyRequestLimit:   req.DailyRequestLimit,
@@ -126,24 +153,8 @@ func (h *Handler) CreateAPIKey(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, APIKeyCreateResponse{
-		APIKeyResponse: APIKeyResponse{
-			ID:                  key.ID,
-			Name:                key.Name,
-			KeyPrefix:           key.KeyPrefix,
-			ProviderConfigID:    key.ProviderConfigID,
-			ExpiresAt:           key.ExpiresAt,
-			IsActive:            key.IsActive,
-			DailyRequestLimit:   key.DailyRequestLimit,
-			MonthlyRequestLimit: key.MonthlyRequestLimit,
-			DailyTokenLimit:     key.DailyTokenLimit,
-			MonthlyTokenLimit:   key.MonthlyTokenLimit,
-			DailyRequestsUsed:   key.DailyRequestsUsed,
-			MonthlyRequestsUsed: key.MonthlyRequestsUsed,
-			DailyTokensUsed:     key.DailyTokensUsed,
-			MonthlyTokensUsed:   key.MonthlyTokensUsed,
-			CreatedAt:           key.CreatedAt,
-		},
-		Key: fullKey,
+		APIKeyResponse: toAPIKeyResponse(key),
+		Key:            fullKey,
 	})
 }
 
@@ -164,23 +175,7 @@ func (h *Handler) GetAPIKey(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "API key not found")
 	}
 
-	return c.JSON(http.StatusOK, APIKeyResponse{
-		ID:                  key.ID,
-		Name:                key.Name,
-		KeyPrefix:           key.KeyPrefix,
-		ProviderConfigID:    key.ProviderConfigID,
-		ExpiresAt:           key.ExpiresAt,
-		IsActive:            key.IsActive,
-		DailyRequestLimit:   key.DailyRequestLimit,
-		MonthlyRequestLimit: key.MonthlyRequestLimit,
-		DailyTokenLimit:     key.DailyTokenLimit,
-		MonthlyTokenLimit:   key.MonthlyTokenLimit,
-		DailyRequestsUsed:   key.DailyRequestsUsed,
-		MonthlyRequestsUsed: key.MonthlyRequestsUsed,
-		DailyTokensUsed:     key.DailyTokensUsed,
-		MonthlyTokensUsed:   key.MonthlyTokensUsed,
-		CreatedAt:           key.CreatedAt,
-	})
+	return c.JSON(http.StatusOK, toAPIKeyResponse(key))
 }
 
 // UpdateAPIKey updates an API key
@@ -204,6 +199,7 @@ func (h *Handler) UpdateAPIKey(c echo.Context) error {
 		Name:                req.Name,
 		ExpiresAt:           req.ExpiresAt,
 		IsActive:            req.IsActive,
+		ProviderConfigIDs:   req.ProviderConfigIDs,
 		DailyRequestLimit:   req.DailyRequestLimit,
 		MonthlyRequestLimit: req.MonthlyRequestLimit,
 		DailyTokenLimit:     req.DailyTokenLimit,
@@ -215,23 +211,7 @@ func (h *Handler) UpdateAPIKey(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, APIKeyResponse{
-		ID:                  key.ID,
-		Name:                key.Name,
-		KeyPrefix:           key.KeyPrefix,
-		ProviderConfigID:    key.ProviderConfigID,
-		ExpiresAt:           key.ExpiresAt,
-		IsActive:            key.IsActive,
-		DailyRequestLimit:   key.DailyRequestLimit,
-		MonthlyRequestLimit: key.MonthlyRequestLimit,
-		DailyTokenLimit:     key.DailyTokenLimit,
-		MonthlyTokenLimit:   key.MonthlyTokenLimit,
-		DailyRequestsUsed:   key.DailyRequestsUsed,
-		MonthlyRequestsUsed: key.MonthlyRequestsUsed,
-		DailyTokensUsed:     key.DailyTokensUsed,
-		MonthlyTokensUsed:   key.MonthlyTokensUsed,
-		CreatedAt:           key.CreatedAt,
-	})
+	return c.JSON(http.StatusOK, toAPIKeyResponse(key))
 }
 
 // DeleteAPIKey deletes an API key

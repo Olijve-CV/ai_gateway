@@ -108,6 +108,7 @@ func main() {
 	e.GET("/register", h.RegisterPage)
 	e.GET("/dashboard", h.DashboardPage)
 	e.GET("/dashboard/providers", h.ProvidersPage)
+	e.GET("/dashboard/keys", h.KeysPage)
 	e.GET("/logout", h.LogoutPage)
 
 	// Start server

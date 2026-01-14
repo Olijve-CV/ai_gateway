@@ -128,7 +128,7 @@ func authenticateWithAPIKey(c echo.Context, db *gorm.DB, cfg *config.Config, api
 	keyHash := utils.HashAPIKey(apiKeyStr)
 
 	var apiKey database.APIKey
-	if err := db.Preload("User").Preload("ProviderConfig").Where("key_hash = ?", keyHash).First(&apiKey).Error; err != nil {
+	if err := db.Preload("User").Preload("ProviderConfigs").Where("key_hash = ?", keyHash).First(&apiKey).Error; err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid API key")
 	}
 
@@ -143,7 +143,6 @@ func authenticateWithAPIKey(c echo.Context, db *gorm.DB, cfg *config.Config, api
 
 	c.Set(ContextKeyUser, &apiKey.User)
 	c.Set(ContextKeyAPIKey, &apiKey)
-	c.Set(ContextKeyProviderConfig, &apiKey.ProviderConfig)
 
 	return next(c)
 }

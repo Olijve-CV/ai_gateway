@@ -52,6 +52,11 @@ func (h *Handler) ProvidersPage(c echo.Context) error {
 	return c.Render(http.StatusOK, "providers.html", PageData{Title: "Service Configuration"})
 }
 
+// KeysPage renders the API keys management page
+func (h *Handler) KeysPage(c echo.Context) error {
+	return c.Render(http.StatusOK, "keys.html", PageData{Title: "API Keys"})
+}
+
 // LogoutPage handles logout and redirects to login
 func (h *Handler) LogoutPage(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/login")

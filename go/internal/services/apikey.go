@@ -24,7 +24,7 @@ func NewAPIKeyService(db *gorm.DB) *APIKeyService {
 
 // APIKeyCreate represents a request to create an API key
 type APIKeyCreate struct {
-	ProviderConfigID    uint       `json:"provider_config_id" validate:"required"`
+	ProviderConfigIDs   []uint     `json:"provider_config_ids" validate:"required,min=1"`
 	Name                string     `json:"name" validate:"required,min=1,max=100"`
 	ExpiresAt           *time.Time `json:"expires_at"`
 	DailyRequestLimit   *int       `json:"daily_request_limit"`
@@ -38,6 +38,7 @@ type APIKeyUpdate struct {
 	Name                *string    `json:"name"`
 	ExpiresAt           *time.Time `json:"expires_at"`
 	IsActive            *bool      `json:"is_active"`
+	ProviderConfigIDs   []uint     `json:"provider_config_ids"`
 	DailyRequestLimit   *int       `json:"daily_request_limit"`
 	MonthlyRequestLimit *int       `json:"monthly_request_limit"`
 	DailyTokenLimit     *int       `json:"daily_token_limit"`
@@ -82,10 +83,13 @@ func (s *APIKeyService) GenerateAPIKey() (fullKey, keyHash, keyPrefix string, er
 
 // CreateAPIKey creates a new API key
 func (s *APIKeyService) CreateAPIKey(userID uint, req *APIKeyCreate) (*database.APIKey, string, error) {
-	// Verify provider config belongs to user
-	var cfg database.ProviderConfig
-	if err := s.db.Where("id = ? AND user_id = ?", req.ProviderConfigID, userID).First(&cfg).Error; err != nil {
-		return nil, "", errors.New("provider config not found")
+	// Verify all provider configs belong to user
+	var configs []database.ProviderConfig
+	if err := s.db.Where("id IN ? AND user_id = ?", req.ProviderConfigIDs, userID).Find(&configs).Error; err != nil {
+		return nil, "", err
+	}
+	if len(configs) != len(req.ProviderConfigIDs) {
+		return nil, "", errors.New("one or more provider configs not found")
 	}
 
 	// Generate API key
@@ -98,7 +102,6 @@ func (s *APIKeyService) CreateAPIKey(userID uint, req *APIKeyCreate) (*database.
 
 	apiKey := &database.APIKey{
 		UserID:              userID,
-		ProviderConfigID:    req.ProviderConfigID,
 		Name:                req.Name,
 		KeyHash:             keyHash,
 		KeyPrefix:           keyPrefix,
@@ -110,6 +113,7 @@ func (s *APIKeyService) CreateAPIKey(userID uint, req *APIKeyCreate) (*database.
 		MonthlyTokenLimit:   req.MonthlyTokenLimit,
 		DailyResetAt:        now.Add(24 * time.Hour),
 		MonthlyResetAt:      now.AddDate(0, 1, 0),
+		ProviderConfigs:     configs,
 	}
 
 	if err := s.db.Create(apiKey).Error; err != nil {
@@ -122,14 +126,14 @@ func (s *APIKeyService) CreateAPIKey(userID uint, req *APIKeyCreate) (*database.
 // GetAPIKeys returns all API keys for a user
 func (s *APIKeyService) GetAPIKeys(userID uint) ([]database.APIKey, error) {
 	var keys []database.APIKey
-	err := s.db.Where("user_id = ?", userID).Preload("ProviderConfig").Order("created_at DESC").Find(&keys).Error
+	err := s.db.Where("user_id = ?", userID).Preload("ProviderConfigs").Order("created_at DESC").Find(&keys).Error
 	return keys, err
 }
 
 // GetAPIKeyByID returns an API key by ID
 func (s *APIKeyService) GetAPIKeyByID(userID, keyID uint) (*database.APIKey, error) {
 	var key database.APIKey
-	err := s.db.Where("id = ? AND user_id = ?", keyID, userID).Preload("ProviderConfig").First(&key).Error
+	err := s.db.Where("id = ? AND user_id = ?", keyID, userID).Preload("ProviderConfigs").First(&key).Error
 	if err != nil {
 		return nil, err
 	}
@@ -173,6 +177,20 @@ func (s *APIKeyService) UpdateAPIKey(userID, keyID uint, req *APIKeyUpdate) (*da
 		}
 	}
 
+	// Update provider configs if provided
+	if len(req.ProviderConfigIDs) > 0 {
+		var configs []database.ProviderConfig
+		if err := s.db.Where("id IN ? AND user_id = ?", req.ProviderConfigIDs, userID).Find(&configs).Error; err != nil {
+			return nil, err
+		}
+		if len(configs) != len(req.ProviderConfigIDs) {
+			return nil, errors.New("one or more provider configs not found")
+		}
+		if err := s.db.Model(key).Association("ProviderConfigs").Replace(configs); err != nil {
+			return nil, err
+		}
+	}
+
 	return s.GetAPIKeyByID(userID, keyID)
 }
 
@@ -191,7 +209,7 @@ func (s *APIKeyService) DeleteAPIKey(userID, keyID uint) error {
 // ValidateAPIKey validates an API key and returns it if valid
 func (s *APIKeyService) ValidateAPIKey(keyHash string) (*database.APIKey, error) {
 	var key database.APIKey
-	err := s.db.Where("key_hash = ?", keyHash).Preload("ProviderConfig").First(&key).Error
+	err := s.db.Where("key_hash = ?", keyHash).Preload("ProviderConfigs").First(&key).Error
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +223,16 @@ func (s *APIKeyService) ValidateAPIKey(keyHash string) (*database.APIKey, error)
 	}
 
 	return &key, nil
+}
+
+// GetProviderConfigForProvider returns the provider config for a specific provider from an API key
+func (s *APIKeyService) GetProviderConfigForProvider(apiKey *database.APIKey, provider string) (*database.ProviderConfig, error) {
+	for i := range apiKey.ProviderConfigs {
+		if apiKey.ProviderConfigs[i].Provider == provider && apiKey.ProviderConfigs[i].IsActive {
+			return &apiKey.ProviderConfigs[i], nil
+		}
+	}
+	return nil, errors.New("no configuration found for provider: " + provider)
 }
 
 // CheckUsageLimits checks if an API key has exceeded its usage limits

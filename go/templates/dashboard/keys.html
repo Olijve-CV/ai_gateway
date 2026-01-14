@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Keys - AI Gateway</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* ===== Key Display ===== */
+        .key-display {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 2px solid #4ade80;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .key-display code {
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #4ade80;
+            font-size: 14px;
+            word-break: break-all;
+            display: block;
+            padding: 14px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+        }
+        .key-display .copy-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            color: #000;
+            border: none;
+            font-weight: 600;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .key-display .copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(74, 222, 128, 0.4);
+        }
+        .key-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: none;
+            border-left: 4px solid #f59e0b;
+            color: #92400e;
+            padding: 14px 18px;
+            border-radius: 0 12px 12px 0;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .key-warning-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        /* ===== Provider Tags ===== */
+        .provider-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .provider-tag {
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .provider-tag.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); }
+        .provider-tag.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); }
+        .provider-tag.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); }
+
+        /* ===== Modal Styles ===== */
+        .modal-content {
+            max-width: 640px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border-radius: 16px;
+            border: 1px solid #3d3d5c;
+        }
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #3d3d5c;
+            background: linear-gradient(135deg, #1e1e2e 0%, #252538 100%);
+        }
+        .modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+        .modal-body::-webkit-scrollbar {
+            width: 6px;
+        }
+        .modal-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .modal-body::-webkit-scrollbar-thumb {
+            background: #4d4d6c;
+            border-radius: 3px;
+        }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #3d3d5c;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* ===== Form Section ===== */
+        .form-section {
+            margin-bottom: 28px;
+        }
+        .form-section:last-child {
+            margin-bottom: 0;
+        }
+        .form-section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .form-section-number {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .form-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .form-section-desc {
+            font-size: 13px;
+            color: #6b7280;
+            margin-left: 40px;
+            margin-top: -8px;
+            margin-bottom: 16px;
+        }
+
+        /* ===== Input Styles ===== */
+        .form-input {
+            width: 100%;
+            background: #1a1a2e;
+            border: 2px solid #3d3d5c;
+            border-radius: 10px;
+            padding: 14px 16px;
+            color: #fff;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+        .form-input:focus {
+            border-color: #6366f1;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        .form-input::placeholder {
+            color: #6b7280;
+        }
+        .form-input-hint {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .form-input-hint svg {
+            width: 14px;
+            height: 14px;
+            opacity: 0.7;
+        }
+
+        /* ===== Provider Selection ===== */
+        .provider-group {
+            background: #1e1e2e;
+            border: 1px solid #3d3d5c;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .provider-group:last-child {
+            margin-bottom: 0;
+        }
+        .provider-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: linear-gradient(135deg, #252538 0%, #2d2d44 100%);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .provider-group-header:hover {
+            background: linear-gradient(135deg, #2d2d44 0%, #353550 100%);
+        }
+        .provider-group-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .provider-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .provider-logo.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); }
+        .provider-logo.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); }
+        .provider-logo.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); }
+        .provider-group-info h4 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .provider-group-info span {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .provider-group-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .select-badge {
+            background: #3d3d5c;
+            color: #9ca3af;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .select-badge.active {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: #fff;
+        }
+        .toggle-all-btn {
+            background: transparent;
+            border: 1px solid #4d4d6c;
+            color: #9ca3af;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toggle-all-btn:hover {
+            border-color: #6366f1;
+            color: #fff;
+        }
+        .provider-group-configs {
+            padding: 12px;
+            display: none;
+            background: #1a1a2e;
+        }
+        .provider-group.expanded .provider-group-configs {
+            display: block;
+        }
+        .provider-group-header .expand-icon {
+            color: #6b7280;
+            transition: transform 0.2s;
+        }
+        .provider-group.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .config-option {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            background: #252538;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .config-option:last-child {
+            margin-bottom: 0;
+        }
+        .config-option:hover {
+            border-color: #4d4d6c;
+        }
+        .config-option.selected {
+            border-color: #6366f1;
+            background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+        }
+        .config-checkbox {
+            width: 22px;
+            height: 22px;
+            border: 2px solid #4d4d6c;
+            border-radius: 6px;
+            margin-right: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .config-option.selected .config-checkbox {
+            background: #4ade80;
+            border-color: #4ade80;
+        }
+        .config-checkbox svg {
+            width: 14px;
+            height: 14px;
+            color: #000;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s;
+        }
+        .config-option.selected .config-checkbox svg {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .config-option input {
+            display: none;
+        }
+        .config-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .config-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 2px;
+        }
+        .config-url {
+            font-size: 12px;
+            color: #6b7280;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .no-configs-hint {
+            text-align: center;
+            padding: 30px;
+            color: #6b7280;
+        }
+        .no-configs-hint a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+        .no-configs-hint a:hover {
+            text-decoration: underline;
+        }
+
+        /* ===== Expiry Options ===== */
+        .expiry-options {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .expiry-option {
+            flex: 1;
+            padding: 12px;
+            background: #252538;
+            border: 2px solid #3d3d5c;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .expiry-option:hover {
+            border-color: #4d4d6c;
+        }
+        .expiry-option.selected {
+            border-color: #6366f1;
+            background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+        }
+        .expiry-option-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .expiry-option-desc {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+        .custom-expiry {
+            display: none;
+        }
+        .custom-expiry.show {
+            display: block;
+        }
+
+        /* ===== Limits Section ===== */
+        .limits-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #252538;
+            border: 1px solid #3d3d5c;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .limits-toggle:hover {
+            border-color: #4d4d6c;
+        }
+        .limits-toggle-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .limits-toggle-icon {
+            width: 36px;
+            height: 36px;
+            background: #3d3d5c;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .limits-toggle h4 {
+            margin: 0;
+            font-size: 14px;
+            color: #fff;
+        }
+        .limits-toggle span {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .limits-toggle-switch {
+            width: 44px;
+            height: 24px;
+            background: #3d3d5c;
+            border-radius: 12px;
+            position: relative;
+            transition: background 0.2s;
+        }
+        .limits-toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+        .limits-toggle.active .limits-toggle-switch {
+            background: #6366f1;
+        }
+        .limits-toggle.active .limits-toggle-switch::after {
+            transform: translateX(20px);
+        }
+        .limits-content {
+            display: none;
+            margin-top: 16px;
+        }
+        .limits-content.show {
+            display: block;
+        }
+        .limits-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .limit-input-group {
+            background: #252538;
+            border-radius: 10px;
+            padding: 14px;
+        }
+        .limit-input-group label {
+            display: block;
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 8px;
+        }
+        .limit-input-group input {
+            width: 100%;
+            background: #1a1a2e;
+            border: 1px solid #3d3d5c;
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: #fff;
+            font-size: 14px;
+        }
+        .limit-input-group input:focus {
+            border-color: #6366f1;
+            outline: none;
+        }
+
+        /* ===== Key Cards ===== */
+        .key-card {
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            border: 1px solid #3d3d5c;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        .key-card:hover {
+            border-color: #4d4d6c;
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+        }
+        .key-card.inactive {
+            opacity: 0.5;
+        }
+        .key-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .key-card-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+        .key-card-prefix {
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            color: #9ca3af;
+            background: #1a1a2e;
+            padding: 6px 10px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .key-card-badges {
+            display: flex;
+            gap: 8px;
+        }
+        .key-card-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(0,0,0,0.25);
+            border-radius: 12px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .stat-value span {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+        .key-card-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .key-card-actions .btn {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        /* ===== Empty State ===== */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+        .empty-state-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            background: linear-gradient(135deg, #252538 0%, #2d2d44 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+        .empty-state-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .empty-state-desc {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 24px;
+        }
+
+        /* ===== Buttons ===== */
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #7c7ffc 0%, #6366f1 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <a href="/dashboard">AI Gateway</a>
+        </div>
+        <div class="navbar-menu">
+            <a href="/dashboard" class="nav-link">仪表盘</a>
+            <a href="/dashboard/providers" class="nav-link">服务配置</a>
+            <a href="/dashboard/keys" class="nav-link active">API Keys</a>
+            <span class="navbar-user" id="username-display"></span>
+            <a href="/logout" class="btn btn-outline">退出</a>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="dashboard-container">
+            <div class="page-header">
+                <h1>API Keys</h1>
+                <button class="btn btn-primary" onclick="showAddModal()">+ 创建 API Key</button>
+            </div>
+            <p class="subtitle">管理您的网关 API Keys，用于对外提供服务</p>
+
+            <div id="message" class="alert" style="display: none;"></div>
+
+            <div id="keys-container">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create/Edit Modal -->
+    <div id="key-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><span id="modal-icon">🔑</span> <span id="modal-title">创建 API Key</span></h3>
+                <button class="modal-close" onclick="hideModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="key-form">
+                    <input type="hidden" id="edit-id">
+
+                    <!-- Section 1: Name -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <span class="form-section-number">1</span>
+                            <span class="form-section-title">命名你的 Key</span>
+                        </div>
+                        <p class="form-section-desc">取一个清晰的名称，方便识别用途</p>
+                        <input type="text" class="form-input" id="key-name" required placeholder="例如：生产环境、测试专用、张三的Key">
+                        <p class="form-input-hint">
+                            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                            建议用场景或用户来命名，如"iOS App 生产"、"内部测试"
+                        </p>
+                    </div>
+
+                    <!-- Section 2: Providers -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <span class="form-section-number">2</span>
+                            <span class="form-section-title">选择可访问的服务</span>
+                        </div>
+                        <p class="form-section-desc">此 Key 将只能访问选中的服务配置，根据模型前缀自动路由</p>
+                        <div id="provider-configs-list">
+                            <!-- Provider configs will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Expiry -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <span class="form-section-number">3</span>
+                            <span class="form-section-title">设置有效期</span>
+                        </div>
+                        <p class="form-section-desc">Key 过期后将自动失效</p>
+                        <div class="expiry-options">
+                            <div class="expiry-option selected" data-value="never" onclick="selectExpiry(this)">
+                                <div class="expiry-option-label">永不过期</div>
+                                <div class="expiry-option-desc">长期使用</div>
+                            </div>
+                            <div class="expiry-option" data-value="30d" onclick="selectExpiry(this)">
+                                <div class="expiry-option-label">30 天</div>
+                                <div class="expiry-option-desc">短期项目</div>
+                            </div>
+                            <div class="expiry-option" data-value="90d" onclick="selectExpiry(this)">
+                                <div class="expiry-option-label">90 天</div>
+                                <div class="expiry-option-desc">季度有效</div>
+                            </div>
+                            <div class="expiry-option" data-value="custom" onclick="selectExpiry(this)">
+                                <div class="expiry-option-label">自定义</div>
+                                <div class="expiry-option-desc">指定日期</div>
+                            </div>
+                        </div>
+                        <div class="custom-expiry" id="custom-expiry-input">
+                            <input type="datetime-local" class="form-input" id="key-expires">
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Limits -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <span class="form-section-number">4</span>
+                            <span class="form-section-title">使用限制（可选）</span>
+                        </div>
+                        <div class="limits-toggle" id="limits-toggle" onclick="toggleLimits()">
+                            <div class="limits-toggle-left">
+                                <div class="limits-toggle-icon">📊</div>
+                                <div>
+                                    <h4>启用用量限制</h4>
+                                    <span>限制请求次数和 Token 用量</span>
+                                </div>
+                            </div>
+                            <div class="limits-toggle-switch"></div>
+                        </div>
+                        <div class="limits-content" id="limits-content">
+                            <div class="limits-grid">
+                                <div class="limit-input-group">
+                                    <label>每日请求上限</label>
+                                    <input type="number" id="daily-request-limit" min="0" placeholder="不限制">
+                                </div>
+                                <div class="limit-input-group">
+                                    <label>每月请求上限</label>
+                                    <input type="number" id="monthly-request-limit" min="0" placeholder="不限制">
+                                </div>
+                                <div class="limit-input-group">
+                                    <label>每日 Token 上限</label>
+                                    <input type="number" id="daily-token-limit" min="0" placeholder="不限制">
+                                </div>
+                                <div class="limit-input-group">
+                                    <label>每月 Token 上限</label>
+                                    <input type="number" id="monthly-token-limit" min="0" placeholder="不限制">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="hideModal()">取消</button>
+                <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitForm()">创建 Key</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Key Display Modal -->
+    <div id="new-key-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>🎉 API Key 创建成功</h3>
+                <button class="modal-close" onclick="hideNewKeyModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="key-warning">
+                    <span class="key-warning-icon">⚠️</span>
+                    <span>请立即复制并安全保存此 Key，关闭窗口后将<strong>无法再次查看</strong>！</span>
+                </div>
+                <div class="key-display">
+                    <code id="new-key-value"></code>
+                    <button type="button" class="copy-btn" onclick="copyKey()">
+                        <span id="copy-btn-text">📋 复制到剪贴板</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: center;">
+                <button type="button" class="btn btn-primary" onclick="hideNewKeyModal()">我已安全保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Usage Modal -->
+    <div id="usage-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>📊 使用统计</h3>
+                <button class="modal-close" onclick="hideUsageModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="usage-content">
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+    <script>
+    let allKeys = [];
+    let allProviderConfigs = [];
+    let editingId = null;
+    let newKeyValue = '';
+    let selectedExpiry = 'never';
+    let limitsEnabled = false;
+
+    // ===== Data Loading =====
+    async function loadData() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+            return;
+        }
+
+        try {
+            const userResp = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (userResp.ok) {
+                const user = await userResp.json();
+                document.getElementById('username-display').textContent = user.username;
+            } else {
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+                return;
+            }
+
+            const configsResp = await fetch('/api/config/providers', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (configsResp.ok) {
+                allProviderConfigs = await configsResp.json();
+            }
+
+            const keysResp = await fetch('/api/keys', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (keysResp.ok) {
+                allKeys = await keysResp.json();
+                renderKeys();
+            }
+        } catch (error) {
+            console.error('Failed to load data:', error);
+            document.getElementById('keys-container').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">❌</div>
+                    <div class="empty-state-title">加载失败</div>
+                    <div class="empty-state-desc">请刷新页面重试</div>
+                </div>
+            `;
+        }
+    }
+
+    // ===== Render Keys List =====
+    function renderKeys() {
+        const container = document.getElementById('keys-container');
+
+        if (!allKeys || allKeys.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔑</div>
+                    <div class="empty-state-title">暂无 API Key</div>
+                    <div class="empty-state-desc">创建一个 API Key 开始使用网关服务</div>
+                    <button class="btn btn-primary" onclick="showAddModal()">创建第一个 Key</button>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = allKeys.map(key => {
+            const isExpired = key.expires_at && new Date(key.expires_at) < new Date();
+            return `
+                <div class="key-card ${key.is_active ? '' : 'inactive'}">
+                    <div class="key-card-header">
+                        <div>
+                            <div class="key-card-title">${key.name}</div>
+                            <span class="key-card-prefix">${key.key_prefix}</span>
+                        </div>
+                        <div class="key-card-badges">
+                            ${!key.is_active ? '<span class="badge badge-muted">已禁用</span>' : ''}
+                            ${isExpired ? '<span class="badge badge-danger">已过期</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="provider-tags">
+                        ${(key.provider_configs || []).map(cfg =>
+                            `<span class="provider-tag ${cfg.provider}">${cfg.provider}</span>`
+                        ).join('')}
+                    </div>
+                    <div class="key-card-stats">
+                        <div class="stat-item">
+                            <div class="stat-value">${key.daily_requests_used}<span>/${key.daily_request_limit || '∞'}</span></div>
+                            <div class="stat-label">今日请求</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${key.monthly_requests_used}<span>/${key.monthly_request_limit || '∞'}</span></div>
+                            <div class="stat-label">本月请求</div>
+                        </div>
+                    </div>
+                    <div class="key-card-actions">
+                        <button class="btn btn-sm btn-outline" onclick="viewUsage(${key.id})">📊 统计</button>
+                        <button class="btn btn-sm btn-outline" onclick="editKey(${key.id})">✏️ 编辑</button>
+                        <button class="btn btn-sm btn-outline" onclick="toggleKey(${key.id})">${key.is_active ? '🚫 禁用' : '✅ 启用'}</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteKey(${key.id})">🗑️ 删除</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ===== Render Provider Configs =====
+    function renderProviderConfigs(selectedIds = []) {
+        const container = document.getElementById('provider-configs-list');
+        const activeConfigs = allProviderConfigs.filter(c => c.is_active);
+
+        if (!activeConfigs || activeConfigs.length === 0) {
+            container.innerHTML = `
+                <div class="no-configs-hint">
+                    <p>暂无可用的服务配置</p>
+                    <p>请先在 <a href="/dashboard/providers">服务配置</a> 中添加</p>
+                </div>
+            `;
+            return;
+        }
+
+        const grouped = {
+            openai: activeConfigs.filter(c => c.provider === 'openai'),
+            anthropic: activeConfigs.filter(c => c.provider === 'anthropic'),
+            gemini: activeConfigs.filter(c => c.provider === 'gemini')
+        };
+
+        const providerMeta = {
+            openai: { name: 'OpenAI', desc: 'GPT-4, GPT-3.5 等模型' },
+            anthropic: { name: 'Anthropic', desc: 'Claude 系列模型' },
+            gemini: { name: 'Gemini', desc: 'Google Gemini 模型' }
+        };
+
+        let html = '';
+        for (const [provider, configs] of Object.entries(grouped)) {
+            if (configs.length === 0) continue;
+
+            const selectedCount = configs.filter(c => selectedIds.includes(c.id)).length;
+            const allSelected = selectedCount === configs.length;
+
+            html += `
+                <div class="provider-group ${selectedCount > 0 ? 'expanded' : ''}" data-provider="${provider}">
+                    <div class="provider-group-header" onclick="toggleProviderGroup('${provider}')">
+                        <div class="provider-group-left">
+                            <div class="provider-logo ${provider}">${provider[0].toUpperCase()}</div>
+                            <div class="provider-group-info">
+                                <h4>${providerMeta[provider].name}</h4>
+                                <span>${providerMeta[provider].desc}</span>
+                            </div>
+                        </div>
+                        <div class="provider-group-right">
+                            <span class="select-badge ${selectedCount > 0 ? 'active' : ''}">${selectedCount}/${configs.length} 已选</span>
+                            <button type="button" class="toggle-all-btn" onclick="event.stopPropagation(); toggleProviderAll('${provider}')">${allSelected ? '取消全选' : '全选'}</button>
+                            <span class="expand-icon">▼</span>
+                        </div>
+                    </div>
+                    <div class="provider-group-configs">
+                        ${configs.map(cfg => {
+                            const isSelected = selectedIds.includes(cfg.id);
+                            return `
+                                <div class="config-option ${isSelected ? 'selected' : ''}" onclick="toggleConfig(this, ${cfg.id}, '${provider}')">
+                                    <div class="config-checkbox">
+                                        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                    </div>
+                                    <input type="checkbox" name="provider_config_ids" value="${cfg.id}" data-provider="${provider}" ${isSelected ? 'checked' : ''}>
+                                    <div class="config-info">
+                                        <div class="config-name">${cfg.name}</div>
+                                        <div class="config-url">${cfg.base_url || '默认端点'}</div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function toggleProviderGroup(provider) {
+        const group = document.querySelector(`.provider-group[data-provider="${provider}"]`);
+        group.classList.toggle('expanded');
+    }
+
+    function toggleConfig(el, id, provider) {
+        const checkbox = el.querySelector('input');
+        checkbox.checked = !checkbox.checked;
+        el.classList.toggle('selected', checkbox.checked);
+        updateProviderBadge(provider);
+    }
+
+    function toggleProviderAll(provider) {
+        const group = document.querySelector(`.provider-group[data-provider="${provider}"]`);
+        const options = group.querySelectorAll('.config-option');
+        const allChecked = Array.from(options).every(opt => opt.classList.contains('selected'));
+
+        options.forEach(opt => {
+            const checkbox = opt.querySelector('input');
+            checkbox.checked = !allChecked;
+            opt.classList.toggle('selected', !allChecked);
+        });
+
+        updateProviderBadge(provider);
+
+        // Update button text
+        const btn = group.querySelector('.toggle-all-btn');
+        btn.textContent = allChecked ? '全选' : '取消全选';
+    }
+
+    function updateProviderBadge(provider) {
+        const group = document.querySelector(`.provider-group[data-provider="${provider}"]`);
+        const options = group.querySelectorAll('.config-option');
+        const selectedCount = group.querySelectorAll('.config-option.selected').length;
+        const badge = group.querySelector('.select-badge');
+        const btn = group.querySelector('.toggle-all-btn');
+
+        badge.textContent = `${selectedCount}/${options.length} 已选`;
+        badge.classList.toggle('active', selectedCount > 0);
+        btn.textContent = selectedCount === options.length ? '取消全选' : '全选';
+    }
+
+    // ===== Expiry Selection =====
+    function selectExpiry(el) {
+        document.querySelectorAll('.expiry-option').forEach(opt => opt.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedExpiry = el.dataset.value;
+
+        const customInput = document.getElementById('custom-expiry-input');
+        if (selectedExpiry === 'custom') {
+            customInput.classList.add('show');
+        } else {
+            customInput.classList.remove('show');
+        }
+    }
+
+    // ===== Limits Toggle =====
+    function toggleLimits() {
+        limitsEnabled = !limitsEnabled;
+        document.getElementById('limits-toggle').classList.toggle('active', limitsEnabled);
+        document.getElementById('limits-content').classList.toggle('show', limitsEnabled);
+    }
+
+    // ===== Modal Functions =====
+    function showAddModal() {
+        editingId = null;
+        document.getElementById('modal-icon').textContent = '🔑';
+        document.getElementById('modal-title').textContent = '创建 API Key';
+        document.getElementById('submit-btn').textContent = '创建 Key';
+        document.getElementById('key-form').reset();
+
+        // Reset expiry
+        selectedExpiry = 'never';
+        document.querySelectorAll('.expiry-option').forEach(opt => {
+            opt.classList.toggle('selected', opt.dataset.value === 'never');
+        });
+        document.getElementById('custom-expiry-input').classList.remove('show');
+
+        // Reset limits
+        limitsEnabled = false;
+        document.getElementById('limits-toggle').classList.remove('active');
+        document.getElementById('limits-content').classList.remove('show');
+
+        renderProviderConfigs([]);
+        document.getElementById('key-modal').style.display = 'flex';
+    }
+
+    function editKey(id) {
+        const key = allKeys.find(k => k.id === id);
+        if (!key) return;
+
+        editingId = id;
+        document.getElementById('modal-icon').textContent = '✏️';
+        document.getElementById('modal-title').textContent = '编辑 API Key';
+        document.getElementById('submit-btn').textContent = '保存修改';
+        document.getElementById('key-name').value = key.name;
+
+        // Set expiry
+        if (key.expires_at) {
+            selectedExpiry = 'custom';
+            document.querySelectorAll('.expiry-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.value === 'custom');
+            });
+            document.getElementById('custom-expiry-input').classList.add('show');
+            document.getElementById('key-expires').value = new Date(key.expires_at).toISOString().slice(0, 16);
+        } else {
+            selectedExpiry = 'never';
+            document.querySelectorAll('.expiry-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.value === 'never');
+            });
+            document.getElementById('custom-expiry-input').classList.remove('show');
+        }
+
+        // Set limits
+        document.getElementById('daily-request-limit').value = key.daily_request_limit || '';
+        document.getElementById('monthly-request-limit').value = key.monthly_request_limit || '';
+        document.getElementById('daily-token-limit').value = key.daily_token_limit || '';
+        document.getElementById('monthly-token-limit').value = key.monthly_token_limit || '';
+
+        limitsEnabled = !!(key.daily_request_limit || key.monthly_request_limit || key.daily_token_limit || key.monthly_token_limit);
+        document.getElementById('limits-toggle').classList.toggle('active', limitsEnabled);
+        document.getElementById('limits-content').classList.toggle('show', limitsEnabled);
+
+        const selectedIds = (key.provider_configs || []).map(c => c.id);
+        renderProviderConfigs(selectedIds);
+
+        document.getElementById('key-modal').style.display = 'flex';
+    }
+
+    function hideModal() {
+        document.getElementById('key-modal').style.display = 'none';
+        editingId = null;
+    }
+
+    function hideNewKeyModal() {
+        document.getElementById('new-key-modal').style.display = 'none';
+        newKeyValue = '';
+    }
+
+    function hideUsageModal() {
+        document.getElementById('usage-modal').style.display = 'none';
+    }
+
+    function copyKey() {
+        navigator.clipboard.writeText(newKeyValue).then(() => {
+            const btn = document.getElementById('copy-btn-text');
+            btn.textContent = '✅ 已复制!';
+            setTimeout(() => {
+                btn.textContent = '📋 复制到剪贴板';
+            }, 2000);
+        });
+    }
+
+    // ===== Form Submission =====
+    async function submitForm() {
+        const token = localStorage.getItem('token');
+        const checkboxes = document.querySelectorAll('input[name="provider_config_ids"]:checked');
+        const providerConfigIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        if (!document.getElementById('key-name').value.trim()) {
+            showMessage('请输入 Key 名称', 'error');
+            return;
+        }
+
+        if (providerConfigIds.length === 0) {
+            showMessage('请至少选择一个服务配置', 'error');
+            return;
+        }
+
+        const data = {
+            name: document.getElementById('key-name').value.trim(),
+            provider_config_ids: providerConfigIds,
+        };
+
+        // Handle expiry
+        if (selectedExpiry === '30d') {
+            data.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        } else if (selectedExpiry === '90d') {
+            data.expires_at = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+        } else if (selectedExpiry === 'custom') {
+            const expiresAt = document.getElementById('key-expires').value;
+            if (expiresAt) {
+                data.expires_at = new Date(expiresAt).toISOString();
+            }
+        }
+
+        // Handle limits
+        if (limitsEnabled) {
+            const dailyRequestLimit = document.getElementById('daily-request-limit').value;
+            if (dailyRequestLimit) data.daily_request_limit = parseInt(dailyRequestLimit);
+
+            const monthlyRequestLimit = document.getElementById('monthly-request-limit').value;
+            if (monthlyRequestLimit) data.monthly_request_limit = parseInt(monthlyRequestLimit);
+
+            const dailyTokenLimit = document.getElementById('daily-token-limit').value;
+            if (dailyTokenLimit) data.daily_token_limit = parseInt(dailyTokenLimit);
+
+            const monthlyTokenLimit = document.getElementById('monthly-token-limit').value;
+            if (monthlyTokenLimit) data.monthly_token_limit = parseInt(monthlyTokenLimit);
+        }
+
+        try {
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = '处理中...';
+
+            let response;
+            if (editingId) {
+                response = await fetch(`/api/keys/${editingId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+            } else {
+                response = await fetch('/api/keys', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+            }
+
+            btn.disabled = false;
+            btn.textContent = editingId ? '保存修改' : '创建 Key';
+
+            if (response.ok) {
+                const result = await response.json();
+                hideModal();
+                loadData();
+
+                if (!editingId && result.key) {
+                    newKeyValue = result.key;
+                    document.getElementById('new-key-value').textContent = result.key;
+                    document.getElementById('new-key-modal').style.display = 'flex';
+                } else {
+                    showMessage('保存成功', 'success');
+                }
+            } else {
+                const err = await response.json();
+                showMessage(err.message || '操作失败', 'error');
+            }
+        } catch (error) {
+            showMessage('网络错误', 'error');
+        }
+    }
+
+    // ===== Key Actions =====
+    async function toggleKey(id) {
+        const token = localStorage.getItem('token');
+        const key = allKeys.find(k => k.id === id);
+        if (!key) return;
+
+        try {
+            const response = await fetch(`/api/keys/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ is_active: !key.is_active })
+            });
+            if (response.ok) {
+                loadData();
+                showMessage(key.is_active ? '已禁用' : '已启用', 'success');
+            }
+        } catch (error) {
+            showMessage('操作失败', 'error');
+        }
+    }
+
+    async function deleteKey(id) {
+        if (!confirm('确定要删除这个 API Key 吗？此操作不可恢复。')) return;
+
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`/api/keys/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                loadData();
+                showMessage('已删除', 'success');
+            }
+        } catch (error) {
+            showMessage('删除失败', 'error');
+        }
+    }
+
+    async function viewUsage(id) {
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`/api/keys/${id}/usage`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const stats = await response.json();
+                renderUsageStats(stats);
+                document.getElementById('usage-modal').style.display = 'flex';
+            }
+        } catch (error) {
+            showMessage('加载失败', 'error');
+        }
+    }
+
+    function renderUsageStats(stats) {
+        const container = document.getElementById('usage-content');
+        container.innerHTML = `
+            <div class="limits-grid" style="margin-bottom: 24px;">
+                <div class="limit-input-group">
+                    <h4 style="margin: 0 0 12px 0; color: #fff; font-size: 16px;">📅 今日使用</h4>
+                    <p style="margin: 6px 0; color: #e2e8f0;">请求: <strong>${stats.daily_requests_used}</strong> / ${stats.daily_request_limit || '∞'}</p>
+                    <p style="margin: 6px 0; color: #e2e8f0;">Token: <strong>${stats.daily_tokens_used}</strong> / ${stats.daily_token_limit || '∞'}</p>
+                    <p style="margin: 8px 0 0; font-size: 12px; color: #6b7280;">重置时间: ${new Date(stats.daily_reset_at).toLocaleString()}</p>
+                </div>
+                <div class="limit-input-group">
+                    <h4 style="margin: 0 0 12px 0; color: #fff; font-size: 16px;">📆 本月使用</h4>
+                    <p style="margin: 6px 0; color: #e2e8f0;">请求: <strong>${stats.monthly_requests_used}</strong> / ${stats.monthly_request_limit || '∞'}</p>
+                    <p style="margin: 6px 0; color: #e2e8f0;">Token: <strong>${stats.monthly_tokens_used}</strong> / ${stats.monthly_token_limit || '∞'}</p>
+                    <p style="margin: 8px 0 0; font-size: 12px; color: #6b7280;">重置时间: ${new Date(stats.monthly_reset_at).toLocaleString()}</p>
+                </div>
+            </div>
+            <h4 style="color: #fff; margin-bottom: 16px; font-size: 16px;">📋 最近调用记录</h4>
+            <div style="max-height: 300px; overflow-y: auto; background: #1a1a2e; border-radius: 12px; border: 1px solid #3d3d5c;">
+                <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                    <thead style="position: sticky; top: 0; background: #252538;">
+                        <tr>
+                            <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">时间</th>
+                            <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">模型</th>
+                            <th style="padding: 12px 16px; text-align: right; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">Token</th>
+                            <th style="padding: 12px 16px; text-align: center; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(stats.recent_records || []).length === 0 ?
+                            '<tr><td colspan="4" style="padding: 32px; text-align: center; color: #6b7280;">暂无调用记录</td></tr>' :
+                            (stats.recent_records || []).map(r => `
+                                <tr>
+                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; color: #e2e8f0;">${new Date(r.created_at).toLocaleString()}</td>
+                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; color: #e2e8f0;">${r.model}</td>
+                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; text-align: right; color: #e2e8f0;">${r.total_tokens}</td>
+                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; text-align: center;">
+                                        <span style="padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; ${r.status_code === 200 ? 'background: rgba(52, 211, 153, 0.2); color: #34d399;' : 'background: rgba(252, 165, 165, 0.2); color: #fca5a5;'}">${r.status_code}</span>
+                                    </td>
+                                </tr>
+                            `).join('')
+                        }
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function showMessage(text, type) {
+        const msg = document.getElementById('message');
+        msg.textContent = text;
+        msg.className = `alert alert-${type}`;
+        msg.style.display = 'block';
+        setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    }
+
+    // Initialize
+    loadData();
+    </script>
+</body>
+</html>

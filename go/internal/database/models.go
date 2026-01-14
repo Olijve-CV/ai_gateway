@@ -32,34 +32,33 @@ type ProviderConfig struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	User         User      `gorm:"foreignKey:UserID" json:"-"`
-	APIKeys      []APIKey  `gorm:"foreignKey:ProviderConfigID" json:"-"`
+	APIKeys      []APIKey  `gorm:"many2many:api_key_providers;" json:"-"`
 }
 
 // APIKey represents a gateway-issued API key
 type APIKey struct {
-	ID                  uint            `gorm:"primaryKey" json:"id"`
-	UserID              uint            `gorm:"index;not null" json:"user_id"`
-	ProviderConfigID    uint            `gorm:"index;not null" json:"provider_config_id"`
-	Name                string          `gorm:"size:100;not null" json:"name"`
-	KeyHash             string          `gorm:"uniqueIndex;size:64;not null" json:"-"`
-	KeyPrefix           string          `gorm:"size:20;not null" json:"key_prefix"`
-	ExpiresAt           *time.Time      `json:"expires_at"`
-	IsActive            bool            `gorm:"default:true" json:"is_active"`
-	DailyRequestLimit   *int            `json:"daily_request_limit"`
-	MonthlyRequestLimit *int            `json:"monthly_request_limit"`
-	DailyTokenLimit     *int            `json:"daily_token_limit"`
-	MonthlyTokenLimit   *int            `json:"monthly_token_limit"`
-	DailyRequestsUsed   int             `gorm:"default:0" json:"daily_requests_used"`
-	MonthlyRequestsUsed int             `gorm:"default:0" json:"monthly_requests_used"`
-	DailyTokensUsed     int             `gorm:"default:0" json:"daily_tokens_used"`
-	MonthlyTokensUsed   int             `gorm:"default:0" json:"monthly_tokens_used"`
-	DailyResetAt        time.Time       `json:"daily_reset_at"`
-	MonthlyResetAt      time.Time       `json:"monthly_reset_at"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
-	User                User            `gorm:"foreignKey:UserID" json:"-"`
-	ProviderConfig      ProviderConfig  `gorm:"foreignKey:ProviderConfigID" json:"-"`
-	UsageRecords        []UsageRecord   `gorm:"foreignKey:APIKeyID" json:"-"`
+	ID                  uint             `gorm:"primaryKey" json:"id"`
+	UserID              uint             `gorm:"index;not null" json:"user_id"`
+	Name                string           `gorm:"size:100;not null" json:"name"`
+	KeyHash             string           `gorm:"uniqueIndex;size:64;not null" json:"-"`
+	KeyPrefix           string           `gorm:"size:20;not null" json:"key_prefix"`
+	ExpiresAt           *time.Time       `json:"expires_at"`
+	IsActive            bool             `gorm:"default:true" json:"is_active"`
+	DailyRequestLimit   *int             `json:"daily_request_limit"`
+	MonthlyRequestLimit *int             `json:"monthly_request_limit"`
+	DailyTokenLimit     *int             `json:"daily_token_limit"`
+	MonthlyTokenLimit   *int             `json:"monthly_token_limit"`
+	DailyRequestsUsed   int              `gorm:"default:0" json:"daily_requests_used"`
+	MonthlyRequestsUsed int              `gorm:"default:0" json:"monthly_requests_used"`
+	DailyTokensUsed     int              `gorm:"default:0" json:"daily_tokens_used"`
+	MonthlyTokensUsed   int              `gorm:"default:0" json:"monthly_tokens_used"`
+	DailyResetAt        time.Time        `json:"daily_reset_at"`
+	MonthlyResetAt      time.Time        `json:"monthly_reset_at"`
+	CreatedAt           time.Time        `json:"created_at"`
+	UpdatedAt           time.Time        `json:"updated_at"`
+	User                User             `gorm:"foreignKey:UserID" json:"-"`
+	ProviderConfigs     []ProviderConfig `gorm:"many2many:api_key_providers;" json:"-"`
+	UsageRecords        []UsageRecord    `gorm:"foreignKey:APIKeyID" json:"-"`
 }
 
 // UsageRecord represents an API usage record

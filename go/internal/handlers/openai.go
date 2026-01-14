@@ -10,6 +10,7 @@ import (
 
 	"ai_gateway/internal/adapters"
 	"ai_gateway/internal/converters"
+	"ai_gateway/internal/database"
 	"ai_gateway/internal/middleware"
 	"ai_gateway/internal/models"
 
@@ -309,12 +310,19 @@ func getTargetProvider(model string) string {
 
 // getCredentials gets the API credentials for the target provider
 func (h *Handler) getCredentials(c echo.Context, provider string) (baseURL, apiKey string, err error) {
-	// Check if using API key auth (has provider config in context)
-	providerCfg := middleware.GetProviderConfig(c)
-	if providerCfg != nil {
-		// Verify provider matches
-		if providerCfg.Provider != provider {
-			return "", "", fmt.Errorf("API key is configured for %s, but model requires %s", providerCfg.Provider, provider)
+	// Check if using API key auth (has API key in context)
+	apiKeyObj := middleware.GetAPIKey(c)
+	if apiKeyObj != nil {
+		// Find matching provider config from API key's associated providers
+		var providerCfg *database.ProviderConfig
+		for i := range apiKeyObj.ProviderConfigs {
+			if apiKeyObj.ProviderConfigs[i].Provider == provider && apiKeyObj.ProviderConfigs[i].IsActive {
+				providerCfg = &apiKeyObj.ProviderConfigs[i]
+				break
+			}
+		}
+		if providerCfg == nil {
+			return "", "", fmt.Errorf("API key does not have access to %s provider", provider)
 		}
 		apiKey, err = h.configService.DecryptAPIKey(providerCfg)
 		if err != nil {
