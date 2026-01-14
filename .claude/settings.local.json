@@ -23,7 +23,26 @@
       "Bash(wsl:*)",
       "Bash(powershell -Command:*)",
       "Bash(cmd /c \"if exist D:\\\\ \\(echo D drive exists\\) else \\(echo D drive not found\\)\")",
-      "Bash(cmd /c \"dir D:\\\\ /b 2>nul && echo D_EXISTS || echo D_NOT_FOUND\")"
+      "Bash(cmd /c \"dir D:\\\\ /b 2>nul && echo D_EXISTS || echo D_NOT_FOUND\")",
+      "Bash(go version:*)",
+      "Bash(setx:*)",
+      "Bash(setx PATH \"%PATH%;D:\\\\go\\\\bin;D:\\\\gopath\\\\bin\")",
+      "Bash(go mod tidy:*)",
+      "Bash(where go:*)",
+      "Bash(where.exe:*)",
+      "Bash(cmd /c \"where go\")",
+      "Bash(cmd /c \"echo %GOROOT%\")",
+      "Bash(D:/Go/bin/go mod:*)",
+      "Bash(GOPROXY=https://goproxy.cn,direct D:/Go/bin/go mod tidy:*)",
+      "Bash(GOPROXY=https://goproxy.cn,direct D:/Go/bin/go run:*)",
+      "Bash(CGO_ENABLED=1 GOPROXY=https://goproxy.cn,direct D:/Go/bin/go run:*)",
+      "Bash(del \"E:\\\\WorkSpace\\\\Olijve-CV\\\\ai_gateway\\\\go\\\\templates\\\\base.html\")",
+      "Bash(set GOPROXY=https://goproxy.cn,direct)",
+      "Bash(D:/Go/bin/go.exe run:*)",
+      "Bash(netstat:*)",
+      "Bash(go build:*)",
+      "Bash(go run:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

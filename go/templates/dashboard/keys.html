@@ -6,25 +6,89 @@
     <title>API Keys - AI Gateway</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
+        /* ===== Animations ===== */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        /* ===== Page Styles ===== */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .page-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .page-header h1::before {
+            content: '';
+            width: 4px;
+            height: 28px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 2px;
+        }
+        .subtitle {
+            color: #9ca3af;
+            font-size: 15px;
+            margin-bottom: 2rem;
+        }
+
         /* ===== Key Display ===== */
         .key-display {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             border: 2px solid #4ade80;
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 16px;
+            padding: 24px;
             margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .key-display::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.1), transparent);
+            animation: shimmer 2s infinite;
         }
         .key-display code {
-            font-family: 'Consolas', 'Monaco', monospace;
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
             color: #4ade80;
-            font-size: 14px;
+            font-size: 13px;
             word-break: break-all;
             display: block;
-            padding: 14px;
-            background: rgba(0,0,0,0.4);
-            border-radius: 8px;
+            padding: 16px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
             margin-bottom: 16px;
-            border: 1px solid rgba(74, 222, 128, 0.3);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            position: relative;
+            letter-spacing: 0.5px;
         }
         .key-display .copy-btn {
             width: 100%;
@@ -32,80 +96,130 @@
             color: #000;
             border: none;
             font-weight: 600;
-            padding: 12px;
-            border-radius: 8px;
+            padding: 14px;
+            border-radius: 10px;
             font-size: 14px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         .key-display .copy-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(74, 222, 128, 0.4);
+            box-shadow: 0 8px 25px rgba(74, 222, 128, 0.4);
+        }
+        .key-display .copy-btn:active {
+            transform: translateY(0);
         }
         .key-warning {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             border: none;
             border-left: 4px solid #f59e0b;
             color: #92400e;
-            padding: 14px 18px;
-            border-radius: 0 12px 12px 0;
+            padding: 16px 20px;
+            border-radius: 0 14px 14px 0;
             margin-bottom: 20px;
             font-size: 14px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
+            animation: slideUp 0.3s ease-out;
         }
         .key-warning-icon {
-            font-size: 24px;
+            font-size: 26px;
             flex-shrink: 0;
+            animation: pulse 2s infinite;
         }
 
         /* ===== Provider Tags ===== */
         .provider-tags {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 10px;
+            gap: 8px;
+            margin-top: 12px;
         }
         .provider-tag {
             color: #fff;
-            padding: 4px 12px;
+            padding: 5px 14px;
             border-radius: 20px;
             font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        .provider-tag.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); }
-        .provider-tag.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); }
-        .provider-tag.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); }
+        .provider-tag::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.6);
+        }
+        .provider-tag.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); box-shadow: 0 2px 8px rgba(16, 163, 127, 0.3); }
+        .provider-tag.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3); }
+        .provider-tag.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3); }
+        .provider-tag:hover {
+            transform: translateY(-1px);
+        }
 
         /* ===== Modal Styles ===== */
+        .modal {
+            animation: fadeIn 0.2s ease-out;
+        }
         .modal-content {
-            max-width: 640px;
+            max-width: 680px;
             max-height: 90vh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            border-radius: 16px;
-            border: 1px solid #3d3d5c;
+            border-radius: 20px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            background: linear-gradient(180deg, #1e1e2e 0%, #171724 100%);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .modal-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid #3d3d5c;
+            padding: 24px 28px;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.15);
             background: linear-gradient(135deg, #1e1e2e 0%, #252538 100%);
         }
         .modal-header h3 {
             margin: 0;
-            font-size: 20px;
+            font-size: 22px;
+            font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            color: #fff;
+        }
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #9ca3af;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-close:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #ef4444;
         }
         .modal-body {
             flex: 1;
             overflow-y: auto;
-            padding: 24px;
+            padding: 28px;
         }
         .modal-body::-webkit-scrollbar {
             width: 6px;
@@ -114,36 +228,45 @@
             background: transparent;
         }
         .modal-body::-webkit-scrollbar-thumb {
-            background: #4d4d6c;
+            background: rgba(99, 102, 241, 0.3);
             border-radius: 3px;
         }
+        .modal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.5);
+        }
         .modal-footer {
-            padding: 16px 24px;
-            border-top: 1px solid #3d3d5c;
-            background: #1a1a2e;
+            padding: 20px 28px;
+            border-top: 1px solid rgba(99, 102, 241, 0.15);
+            background: rgba(0,0,0,0.2);
             display: flex;
             justify-content: flex-end;
-            gap: 12px;
+            gap: 14px;
         }
 
         /* ===== Form Section ===== */
         .form-section {
-            margin-bottom: 28px;
+            margin-bottom: 32px;
+            animation: slideUp 0.4s ease-out;
+            animation-fill-mode: both;
         }
+        .form-section:nth-child(1) { animation-delay: 0.05s; }
+        .form-section:nth-child(2) { animation-delay: 0.1s; }
+        .form-section:nth-child(3) { animation-delay: 0.15s; }
+        .form-section:nth-child(4) { animation-delay: 0.2s; }
         .form-section:last-child {
             margin-bottom: 0;
         }
         .form-section-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
+            gap: 14px;
+            margin-bottom: 12px;
         }
         .form-section-number {
-            width: 28px;
-            height: 28px;
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -151,35 +274,37 @@
             font-weight: 700;
             color: #fff;
             flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
         .form-section-title {
-            font-size: 16px;
+            font-size: 17px;
             font-weight: 600;
             color: #fff;
         }
         .form-section-desc {
             font-size: 13px;
             color: #6b7280;
-            margin-left: 40px;
-            margin-top: -8px;
+            margin-left: 46px;
             margin-bottom: 16px;
+            line-height: 1.5;
         }
 
         /* ===== Input Styles ===== */
         .form-input {
             width: 100%;
-            background: #1a1a2e;
+            background: rgba(26, 26, 46, 0.8);
             border: 2px solid #3d3d5c;
-            border-radius: 10px;
-            padding: 14px 16px;
+            border-radius: 12px;
+            padding: 14px 18px;
             color: #fff;
             font-size: 15px;
-            transition: all 0.2s;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .form-input:focus {
             border-color: #6366f1;
             outline: none;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+            background: #1a1a2e;
         }
         .form-input::placeholder {
             color: #6b7280;
@@ -187,59 +312,76 @@
         .form-input-hint {
             font-size: 12px;
             color: #6b7280;
-            margin-top: 8px;
+            margin-top: 10px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(99, 102, 241, 0.05);
+            border-radius: 8px;
+            border-left: 3px solid #6366f1;
         }
         .form-input-hint svg {
             width: 14px;
             height: 14px;
             opacity: 0.7;
+            color: #6366f1;
         }
 
         /* ===== Provider Selection ===== */
         .provider-group {
-            background: #1e1e2e;
+            background: rgba(30, 30, 46, 0.6);
             border: 1px solid #3d3d5c;
-            border-radius: 12px;
-            margin-bottom: 12px;
+            border-radius: 14px;
+            margin-bottom: 14px;
             overflow: hidden;
+            transition: all 0.3s;
         }
         .provider-group:last-child {
             margin-bottom: 0;
+        }
+        .provider-group:hover {
+            border-color: #4d4d6c;
+        }
+        .provider-group.expanded {
+            border-color: rgba(99, 102, 241, 0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
         }
         .provider-group-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 16px;
-            background: linear-gradient(135deg, #252538 0%, #2d2d44 100%);
+            padding: 16px 18px;
+            background: linear-gradient(135deg, rgba(37, 37, 56, 0.8) 0%, rgba(45, 45, 68, 0.8) 100%);
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.25s;
         }
         .provider-group-header:hover {
-            background: linear-gradient(135deg, #2d2d44 0%, #353550 100%);
+            background: linear-gradient(135deg, rgba(45, 45, 68, 0.9) 0%, rgba(53, 53, 80, 0.9) 100%);
         }
         .provider-group-left {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
         }
         .provider-logo {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 700;
             color: #fff;
+            transition: transform 0.2s;
         }
-        .provider-logo.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); }
-        .provider-logo.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); }
-        .provider-logo.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); }
+        .provider-group-header:hover .provider-logo {
+            transform: scale(1.05);
+        }
+        .provider-logo.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); box-shadow: 0 4px 15px rgba(16, 163, 127, 0.25); }
+        .provider-logo.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); box-shadow: 0 4px 15px rgba(217, 119, 6, 0.25); }
+        .provider-logo.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); box-shadow: 0 4px 15px rgba(66, 133, 244, 0.25); }
         .provider-group-info h4 {
             margin: 0;
             font-size: 15px;
@@ -248,7 +390,9 @@
         }
         .provider-group-info span {
             font-size: 12px;
-            color: #6b7280;
+            color: #9ca3af;
+            margin-top: 2px;
+            display: block;
         }
         .provider-group-right {
             display: flex;
@@ -256,95 +400,107 @@
             gap: 12px;
         }
         .select-badge {
-            background: #3d3d5c;
-            color: #9ca3af;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        .select-badge.active {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            color: #fff;
-        }
-        .toggle-all-btn {
-            background: transparent;
-            border: 1px solid #4d4d6c;
+            background: rgba(61, 61, 92, 0.8);
             color: #9ca3af;
             padding: 6px 12px;
-            border-radius: 6px;
+            border-radius: 20px;
             font-size: 12px;
+            font-weight: 600;
+            transition: all 0.25s;
+        }
+        .select-badge.active {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: #fff;
+            box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+        }
+        .toggle-all-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #9ca3af;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
         }
         .toggle-all-btn:hover {
-            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.3);
             color: #fff;
         }
         .provider-group-configs {
-            padding: 12px;
+            padding: 14px;
             display: none;
-            background: #1a1a2e;
+            background: rgba(26, 26, 46, 0.5);
+            border-top: 1px solid rgba(61, 61, 92, 0.5);
         }
         .provider-group.expanded .provider-group-configs {
             display: block;
+            animation: slideUp 0.25s ease-out;
         }
         .provider-group-header .expand-icon {
             color: #6b7280;
-            transition: transform 0.2s;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 12px;
         }
         .provider-group.expanded .expand-icon {
             transform: rotate(180deg);
+            color: #6366f1;
         }
 
         .config-option {
             display: flex;
             align-items: center;
-            padding: 12px 14px;
-            background: #252538;
+            padding: 14px 16px;
+            background: rgba(37, 37, 56, 0.6);
             border: 2px solid transparent;
-            border-radius: 10px;
-            margin-bottom: 8px;
+            border-radius: 12px;
+            margin-bottom: 10px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .config-option:last-child {
             margin-bottom: 0;
         }
         .config-option:hover {
-            border-color: #4d4d6c;
+            background: rgba(45, 45, 68, 0.8);
+            border-color: rgba(99, 102, 241, 0.2);
+            transform: translateX(4px);
         }
         .config-option.selected {
             border-color: #6366f1;
-            background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+            background: linear-gradient(135deg, rgba(55, 48, 163, 0.4) 0%, rgba(67, 56, 202, 0.4) 100%);
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
         }
         .config-checkbox {
-            width: 22px;
-            height: 22px;
+            width: 24px;
+            height: 24px;
             border: 2px solid #4d4d6c;
-            border-radius: 6px;
+            border-radius: 8px;
             margin-right: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             flex-shrink: 0;
         }
         .config-option.selected .config-checkbox {
-            background: #4ade80;
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
             border-color: #4ade80;
+            box-shadow: 0 2px 8px rgba(74, 222, 128, 0.3);
         }
         .config-checkbox svg {
             width: 14px;
             height: 14px;
             color: #000;
             opacity: 0;
-            transform: scale(0.5);
-            transition: all 0.2s;
+            transform: scale(0.5) rotate(-10deg);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .config-option.selected .config-checkbox svg {
             opacity: 1;
-            transform: scale(1);
+            transform: scale(1) rotate(0deg);
         }
         .config-option input {
             display: none;
@@ -357,7 +513,7 @@
             font-size: 14px;
             font-weight: 600;
             color: #fff;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
         }
         .config-url {
             font-size: 12px;
@@ -369,12 +525,20 @@
 
         .no-configs-hint {
             text-align: center;
-            padding: 30px;
+            padding: 40px 30px;
             color: #6b7280;
+            background: rgba(26, 26, 46, 0.4);
+            border-radius: 12px;
+            border: 1px dashed #3d3d5c;
+        }
+        .no-configs-hint p:first-child {
+            font-size: 32px;
+            margin-bottom: 12px;
         }
         .no-configs-hint a {
             color: #6366f1;
             text-decoration: none;
+            font-weight: 500;
         }
         .no-configs-hint a:hover {
             text-decoration: underline;
@@ -382,26 +546,48 @@
 
         /* ===== Expiry Options ===== */
         .expiry-options {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 14px;
         }
         .expiry-option {
-            flex: 1;
-            padding: 12px;
-            background: #252538;
+            padding: 16px 12px;
+            background: rgba(37, 37, 56, 0.6);
             border: 2px solid #3d3d5c;
-            border-radius: 10px;
+            border-radius: 14px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .expiry-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: transparent;
+            transition: all 0.25s;
         }
         .expiry-option:hover {
             border-color: #4d4d6c;
+            transform: translateY(-2px);
         }
         .expiry-option.selected {
             border-color: #6366f1;
-            background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+            background: linear-gradient(135deg, rgba(55, 48, 163, 0.3) 0%, rgba(67, 56, 202, 0.3) 100%);
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.2);
+        }
+        .expiry-option.selected::before {
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+        }
+        .expiry-option-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+            display: block;
         }
         .expiry-option-label {
             font-size: 14px;
@@ -411,10 +597,12 @@
         .expiry-option-desc {
             font-size: 11px;
             color: #9ca3af;
-            margin-top: 2px;
+            margin-top: 4px;
         }
         .custom-expiry {
             display: none;
+            margin-top: 14px;
+            animation: slideUp 0.25s ease-out;
         }
         .custom-expiry.show {
             display: block;
@@ -425,68 +613,83 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 16px;
-            background: #252538;
-            border: 1px solid #3d3d5c;
-            border-radius: 10px;
+            padding: 18px 20px;
+            background: rgba(37, 37, 56, 0.6);
+            border: 2px solid #3d3d5c;
+            border-radius: 14px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.25s;
         }
         .limits-toggle:hover {
             border-color: #4d4d6c;
+            background: rgba(45, 45, 68, 0.7);
+        }
+        .limits-toggle.active {
+            border-color: rgba(99, 102, 241, 0.4);
+            background: rgba(99, 102, 241, 0.1);
         }
         .limits-toggle-left {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
         }
         .limits-toggle-icon {
-            width: 36px;
-            height: 36px;
-            background: #3d3d5c;
-            border-radius: 8px;
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #3d3d5c 0%, #4d4d6c 100%);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 20px;
+            transition: all 0.25s;
+        }
+        .limits-toggle.active .limits-toggle-icon {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
         .limits-toggle h4 {
             margin: 0;
-            font-size: 14px;
+            font-size: 15px;
+            font-weight: 600;
             color: #fff;
         }
         .limits-toggle span {
-            font-size: 12px;
+            font-size: 13px;
             color: #6b7280;
+            margin-top: 2px;
+            display: block;
         }
         .limits-toggle-switch {
-            width: 44px;
-            height: 24px;
+            width: 52px;
+            height: 28px;
             background: #3d3d5c;
-            border-radius: 12px;
+            border-radius: 14px;
             position: relative;
-            transition: background 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .limits-toggle-switch::after {
             content: '';
             position: absolute;
-            width: 20px;
-            height: 20px;
+            width: 22px;
+            height: 22px;
             background: #fff;
             border-radius: 50%;
-            top: 2px;
-            left: 2px;
-            transition: transform 0.2s;
+            top: 3px;
+            left: 3px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         .limits-toggle.active .limits-toggle-switch {
-            background: #6366f1;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
         }
         .limits-toggle.active .limits-toggle-switch::after {
-            transform: translateX(20px);
+            transform: translateX(24px);
         }
         .limits-content {
             display: none;
-            margin-top: 16px;
+            margin-top: 18px;
+            animation: slideUp 0.3s ease-out;
         }
         .limits-content.show {
             display: block;
@@ -494,151 +697,368 @@
         .limits-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 14px;
         }
         .limit-input-group {
-            background: #252538;
-            border-radius: 10px;
-            padding: 14px;
+            background: rgba(37, 37, 56, 0.6);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #3d3d5c;
+            transition: all 0.2s;
+        }
+        .limit-input-group:hover {
+            border-color: #4d4d6c;
+        }
+        .limit-input-group:focus-within {
+            border-color: rgba(99, 102, 241, 0.4);
         }
         .limit-input-group label {
-            display: block;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 12px;
+            font-weight: 500;
             color: #9ca3af;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+        .limit-input-group label::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4d4d6c;
+        }
+        .limit-input-group:nth-child(1) label::before,
+        .limit-input-group:nth-child(3) label::before { background: #22c55e; }
+        .limit-input-group:nth-child(2) label::before,
+        .limit-input-group:nth-child(4) label::before { background: #6366f1; }
         .limit-input-group input {
             width: 100%;
-            background: #1a1a2e;
+            background: rgba(26, 26, 46, 0.8);
             border: 1px solid #3d3d5c;
-            border-radius: 6px;
-            padding: 10px 12px;
+            border-radius: 8px;
+            padding: 12px 14px;
             color: #fff;
-            font-size: 14px;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s;
         }
         .limit-input-group input:focus {
             border-color: #6366f1;
             outline: none;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        .limit-input-group input::placeholder {
+            color: #6b7280;
+            font-weight: 400;
+        }
+
+        /* ===== Key Cards Grid ===== */
+        .keys-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 20px;
         }
 
         /* ===== Key Cards ===== */
         .key-card {
-            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            background: linear-gradient(145deg, #1e1e2e 0%, #252538 50%, #2d2d44 100%);
             border: 1px solid #3d3d5c;
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 16px;
-            transition: all 0.3s;
+            border-radius: 20px;
+            padding: 0;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            position: relative;
+        }
+        .key-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7);
+            opacity: 0;
+            transition: opacity 0.3s;
         }
         .key-card:hover {
-            border-color: #4d4d6c;
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+            border-color: rgba(99, 102, 241, 0.4);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+        }
+        .key-card:hover::before {
+            opacity: 1;
         }
         .key-card.inactive {
-            opacity: 0.5;
+            opacity: 0.6;
+        }
+        .key-card.inactive::before {
+            background: linear-gradient(90deg, #6b7280, #9ca3af);
+        }
+        .key-card-inner {
+            padding: 24px;
         }
         .key-card-header {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
         .key-card-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 700;
             color: #fff;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .key-card-title::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4ade80;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+        .key-card.inactive .key-card-title::before {
+            background: #6b7280;
+            box-shadow: none;
         }
         .key-card-prefix {
-            font-family: 'Consolas', monospace;
-            font-size: 13px;
-            color: #9ca3af;
-            background: #1a1a2e;
-            padding: 6px 10px;
-            border-radius: 6px;
-            display: inline-block;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 12px;
+            color: #6b7280;
+            background: rgba(26, 26, 46, 0.8);
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #3d3d5c;
+        }
+        .key-card-prefix::before {
+            content: 'KEY';
+            font-size: 9px;
+            font-weight: 700;
+            color: #4d4d6c;
+            letter-spacing: 1px;
         }
         .key-card-badges {
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-muted {
+            background: rgba(107, 114, 128, 0.2);
+            color: #9ca3af;
+            border: 1px solid rgba(107, 114, 128, 0.3);
+        }
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
         }
         .key-card-stats {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
+            gap: 12px;
             margin: 20px 0;
-            padding: 16px;
-            background: rgba(0,0,0,0.25);
-            border-radius: 12px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 14px;
+            border: 1px solid rgba(99, 102, 241, 0.1);
         }
         .stat-item {
             text-align: center;
+            padding: 12px;
+            background: rgba(26, 26, 46, 0.5);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .stat-item:hover {
+            background: rgba(99, 102, 241, 0.1);
         }
         .stat-value {
-            font-size: 24px;
+            font-size: 26px;
             font-weight: 700;
             color: #fff;
+            line-height: 1.2;
         }
         .stat-value span {
             font-size: 14px;
             color: #6b7280;
-            font-weight: 400;
+            font-weight: 500;
         }
         .stat-label {
-            font-size: 12px;
-            color: #6b7280;
+            font-size: 11px;
+            color: #9ca3af;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 4px;
+            letter-spacing: 1px;
+            margin-top: 6px;
+            font-weight: 500;
         }
         .key-card-actions {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
             gap: 10px;
-            flex-wrap: wrap;
         }
         .key-card-actions .btn {
-            flex: 1;
-            min-width: 100px;
+            padding: 10px 8px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            border-radius: 10px;
+            min-width: 0;
+        }
+        .key-card-actions .btn-icon {
+            font-size: 16px;
         }
 
         /* ===== Empty State ===== */
         .empty-state {
             text-align: center;
-            padding: 80px 20px;
+            padding: 100px 40px;
+            animation: fadeIn 0.5s ease-out;
         }
         .empty-state-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 24px;
-            background: linear-gradient(135deg, #252538 0%, #2d2d44 100%);
-            border-radius: 20px;
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 28px;
+            background: linear-gradient(145deg, #252538 0%, #2d2d44 100%);
+            border-radius: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 36px;
+            font-size: 44px;
+            border: 1px solid #3d3d5c;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
         }
         .empty-state-title {
-            font-size: 20px;
-            font-weight: 600;
+            font-size: 24px;
+            font-weight: 700;
             color: #fff;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
         .empty-state-desc {
-            font-size: 14px;
+            font-size: 15px;
             color: #6b7280;
-            margin-bottom: 24px;
+            margin-bottom: 28px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
         }
 
         /* ===== Buttons ===== */
+        .btn {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         .btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             border: none;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, #7c7ffc 0%, #6366f1 100%);
+            background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        .btn-outline {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #e2e8f0;
+        }
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.25);
+        }
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+        }
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+        .btn-sm {
+            padding: 8px 14px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+
+        /* ===== Loading State ===== */
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #6b7280;
+            font-size: 15px;
+        }
+        .loading::before {
+            content: '';
+            display: block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #3d3d5c;
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            .keys-grid {
+                grid-template-columns: 1fr;
+            }
+            .expiry-options {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .limits-grid {
+                grid-template-columns: 1fr;
+            }
+            .key-card-actions {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .modal-content {
+                margin: 16px;
+                max-height: 85vh;
+            }
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+            .page-header .btn {
+                width: 100%;
+            }
+        }
+        @media (max-width: 480px) {
+            .expiry-options {
+                grid-template-columns: 1fr 1fr;
+            }
+            .key-card-inner {
+                padding: 18px;
+            }
         }
     </style>
 </head>
@@ -718,18 +1138,22 @@
                         <p class="form-section-desc">Key 过期后将自动失效</p>
                         <div class="expiry-options">
                             <div class="expiry-option selected" data-value="never" onclick="selectExpiry(this)">
+                                <span class="expiry-option-icon">&#x221E;</span>
                                 <div class="expiry-option-label">永不过期</div>
                                 <div class="expiry-option-desc">长期使用</div>
                             </div>
                             <div class="expiry-option" data-value="30d" onclick="selectExpiry(this)">
+                                <span class="expiry-option-icon">&#128197;</span>
                                 <div class="expiry-option-label">30 天</div>
                                 <div class="expiry-option-desc">短期项目</div>
                             </div>
                             <div class="expiry-option" data-value="90d" onclick="selectExpiry(this)">
+                                <span class="expiry-option-icon">&#128198;</span>
                                 <div class="expiry-option-label">90 天</div>
                                 <div class="expiry-option-desc">季度有效</div>
                             </div>
                             <div class="expiry-option" data-value="custom" onclick="selectExpiry(this)">
+                                <span class="expiry-option-icon">&#128221;</span>
                                 <div class="expiry-option-label">自定义</div>
                                 <div class="expiry-option-desc">指定日期</div>
                             </div>
@@ -886,53 +1310,68 @@
         if (!allKeys || allKeys.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <div class="empty-state-icon">🔑</div>
+                    <div class="empty-state-icon">&#128273;</div>
                     <div class="empty-state-title">暂无 API Key</div>
-                    <div class="empty-state-desc">创建一个 API Key 开始使用网关服务</div>
-                    <button class="btn btn-primary" onclick="showAddModal()">创建第一个 Key</button>
+                    <div class="empty-state-desc">创建一个 API Key 开始使用网关服务，您可以为不同场景创建多个 Key 并分别配置权限</div>
+                    <button class="btn btn-primary" onclick="showAddModal()">&#43; 创建第一个 Key</button>
                 </div>
             `;
             return;
         }
 
-        container.innerHTML = allKeys.map(key => {
+        container.innerHTML = '<div class="keys-grid">' + allKeys.map((key, index) => {
             const isExpired = key.expires_at && new Date(key.expires_at) < new Date();
+            const animationDelay = Math.min(index * 0.05, 0.3);
             return `
-                <div class="key-card ${key.is_active ? '' : 'inactive'}">
-                    <div class="key-card-header">
-                        <div>
-                            <div class="key-card-title">${key.name}</div>
-                            <span class="key-card-prefix">${key.key_prefix}</span>
+                <div class="key-card ${key.is_active ? '' : 'inactive'}" style="animation: slideUp 0.4s ease-out ${animationDelay}s both;">
+                    <div class="key-card-inner">
+                        <div class="key-card-header">
+                            <div>
+                                <div class="key-card-title">${key.name}</div>
+                                <span class="key-card-prefix">${key.key_prefix}</span>
+                            </div>
+                            <div class="key-card-badges">
+                                ${!key.is_active ? '<span class="badge badge-muted">已禁用</span>' : ''}
+                                ${isExpired ? '<span class="badge badge-danger">已过期</span>' : ''}
+                            </div>
                         </div>
-                        <div class="key-card-badges">
-                            ${!key.is_active ? '<span class="badge badge-muted">已禁用</span>' : ''}
-                            ${isExpired ? '<span class="badge badge-danger">已过期</span>' : ''}
+                        <div class="provider-tags">
+                            ${(key.provider_configs || []).map(cfg =>
+                                `<span class="provider-tag ${cfg.provider}">${cfg.provider}</span>`
+                            ).join('')}
                         </div>
-                    </div>
-                    <div class="provider-tags">
-                        ${(key.provider_configs || []).map(cfg =>
-                            `<span class="provider-tag ${cfg.provider}">${cfg.provider}</span>`
-                        ).join('')}
-                    </div>
-                    <div class="key-card-stats">
-                        <div class="stat-item">
-                            <div class="stat-value">${key.daily_requests_used}<span>/${key.daily_request_limit || '∞'}</span></div>
-                            <div class="stat-label">今日请求</div>
+                        <div class="key-card-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">${key.daily_requests_used}<span>/${key.daily_request_limit || '&#8734;'}</span></div>
+                                <div class="stat-label">今日请求</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${key.monthly_requests_used}<span>/${key.monthly_request_limit || '&#8734;'}</span></div>
+                                <div class="stat-label">本月请求</div>
+                            </div>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-value">${key.monthly_requests_used}<span>/${key.monthly_request_limit || '∞'}</span></div>
-                            <div class="stat-label">本月请求</div>
+                        <div class="key-card-actions">
+                            <button class="btn btn-sm btn-outline" onclick="viewUsage(${key.id})">
+                                <span class="btn-icon">&#128202;</span>
+                                统计
+                            </button>
+                            <button class="btn btn-sm btn-outline" onclick="editKey(${key.id})">
+                                <span class="btn-icon">&#9998;</span>
+                                编辑
+                            </button>
+                            <button class="btn btn-sm btn-outline" onclick="toggleKey(${key.id})">
+                                <span class="btn-icon">${key.is_active ? '&#128683;' : '&#9989;'}</span>
+                                ${key.is_active ? '禁用' : '启用'}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteKey(${key.id})">
+                                <span class="btn-icon">&#128465;</span>
+                                删除
+                            </button>
                         </div>
-                    </div>
-                    <div class="key-card-actions">
-                        <button class="btn btn-sm btn-outline" onclick="viewUsage(${key.id})">📊 统计</button>
-                        <button class="btn btn-sm btn-outline" onclick="editKey(${key.id})">✏️ 编辑</button>
-                        <button class="btn btn-sm btn-outline" onclick="toggleKey(${key.id})">${key.is_active ? '🚫 禁用' : '✅ 启用'}</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteKey(${key.id})">🗑️ 删除</button>
                     </div>
                 </div>
             `;
-        }).join('');
+        }).join('') + '</div>';
     }
 
     // ===== Render Provider Configs =====
@@ -943,8 +1382,9 @@
         if (!activeConfigs || activeConfigs.length === 0) {
             container.innerHTML = `
                 <div class="no-configs-hint">
+                    <p>&#128268;</p>
                     <p>暂无可用的服务配置</p>
-                    <p>请先在 <a href="/dashboard/providers">服务配置</a> 中添加</p>
+                    <p>请先在 <a href="/dashboard/providers">服务配置</a> 中添加 API 密钥</p>
                 </div>
             `;
             return;
@@ -1322,40 +1762,62 @@
         const container = document.getElementById('usage-content');
         container.innerHTML = `
             <div class="limits-grid" style="margin-bottom: 24px;">
-                <div class="limit-input-group">
-                    <h4 style="margin: 0 0 12px 0; color: #fff; font-size: 16px;">📅 今日使用</h4>
-                    <p style="margin: 6px 0; color: #e2e8f0;">请求: <strong>${stats.daily_requests_used}</strong> / ${stats.daily_request_limit || '∞'}</p>
-                    <p style="margin: 6px 0; color: #e2e8f0;">Token: <strong>${stats.daily_tokens_used}</strong> / ${stats.daily_token_limit || '∞'}</p>
-                    <p style="margin: 8px 0 0; font-size: 12px; color: #6b7280;">重置时间: ${new Date(stats.daily_reset_at).toLocaleString()}</p>
+                <div class="limit-input-group" style="border-left: 3px solid #22c55e;">
+                    <h4 style="margin: 0 0 14px 0; color: #fff; font-size: 16px; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">&#128197;</span> 今日使用
+                    </h4>
+                    <p style="margin: 8px 0; color: #e2e8f0; font-size: 14px; display: flex; justify-content: space-between;">
+                        <span>请求次数</span>
+                        <strong style="color: #4ade80;">${stats.daily_requests_used} / ${stats.daily_request_limit || '&#8734;'}</strong>
+                    </p>
+                    <p style="margin: 8px 0; color: #e2e8f0; font-size: 14px; display: flex; justify-content: space-between;">
+                        <span>Token 用量</span>
+                        <strong style="color: #4ade80;">${stats.daily_tokens_used} / ${stats.daily_token_limit || '&#8734;'}</strong>
+                    </p>
+                    <p style="margin: 12px 0 0; font-size: 12px; color: #6b7280; padding-top: 10px; border-top: 1px solid #3d3d5c;">
+                        重置时间: ${new Date(stats.daily_reset_at).toLocaleString()}
+                    </p>
                 </div>
-                <div class="limit-input-group">
-                    <h4 style="margin: 0 0 12px 0; color: #fff; font-size: 16px;">📆 本月使用</h4>
-                    <p style="margin: 6px 0; color: #e2e8f0;">请求: <strong>${stats.monthly_requests_used}</strong> / ${stats.monthly_request_limit || '∞'}</p>
-                    <p style="margin: 6px 0; color: #e2e8f0;">Token: <strong>${stats.monthly_tokens_used}</strong> / ${stats.monthly_token_limit || '∞'}</p>
-                    <p style="margin: 8px 0 0; font-size: 12px; color: #6b7280;">重置时间: ${new Date(stats.monthly_reset_at).toLocaleString()}</p>
+                <div class="limit-input-group" style="border-left: 3px solid #6366f1;">
+                    <h4 style="margin: 0 0 14px 0; color: #fff; font-size: 16px; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 20px;">&#128198;</span> 本月使用
+                    </h4>
+                    <p style="margin: 8px 0; color: #e2e8f0; font-size: 14px; display: flex; justify-content: space-between;">
+                        <span>请求次数</span>
+                        <strong style="color: #818cf8;">${stats.monthly_requests_used} / ${stats.monthly_request_limit || '&#8734;'}</strong>
+                    </p>
+                    <p style="margin: 8px 0; color: #e2e8f0; font-size: 14px; display: flex; justify-content: space-between;">
+                        <span>Token 用量</span>
+                        <strong style="color: #818cf8;">${stats.monthly_tokens_used} / ${stats.monthly_token_limit || '&#8734;'}</strong>
+                    </p>
+                    <p style="margin: 12px 0 0; font-size: 12px; color: #6b7280; padding-top: 10px; border-top: 1px solid #3d3d5c;">
+                        重置时间: ${new Date(stats.monthly_reset_at).toLocaleString()}
+                    </p>
                 </div>
             </div>
-            <h4 style="color: #fff; margin-bottom: 16px; font-size: 16px;">📋 最近调用记录</h4>
-            <div style="max-height: 300px; overflow-y: auto; background: #1a1a2e; border-radius: 12px; border: 1px solid #3d3d5c;">
+            <h4 style="color: #fff; margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 18px;">&#128203;</span> 最近调用记录
+            </h4>
+            <div style="max-height: 300px; overflow-y: auto; background: rgba(26, 26, 46, 0.6); border-radius: 14px; border: 1px solid #3d3d5c;">
                 <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
-                    <thead style="position: sticky; top: 0; background: #252538;">
+                    <thead style="position: sticky; top: 0; background: linear-gradient(135deg, #252538 0%, #2d2d44 100%);">
                         <tr>
-                            <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">时间</th>
-                            <th style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">模型</th>
-                            <th style="padding: 12px 16px; text-align: right; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">Token</th>
-                            <th style="padding: 12px 16px; text-align: center; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 500;">状态</th>
+                            <th style="padding: 14px 16px; text-align: left; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">时间</th>
+                            <th style="padding: 14px 16px; text-align: left; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">模型</th>
+                            <th style="padding: 14px 16px; text-align: right; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Token</th>
+                            <th style="padding: 14px 16px; text-align: center; border-bottom: 1px solid #3d3d5c; color: #9ca3af; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">状态</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${(stats.recent_records || []).length === 0 ?
-                            '<tr><td colspan="4" style="padding: 32px; text-align: center; color: #6b7280;">暂无调用记录</td></tr>' :
+                            '<tr><td colspan="4" style="padding: 40px; text-align: center; color: #6b7280;">&#128203; 暂无调用记录</td></tr>' :
                             (stats.recent_records || []).map(r => `
-                                <tr>
-                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; color: #e2e8f0;">${new Date(r.created_at).toLocaleString()}</td>
-                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; color: #e2e8f0;">${r.model}</td>
-                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; text-align: right; color: #e2e8f0;">${r.total_tokens}</td>
-                                    <td style="padding: 10px 16px; border-bottom: 1px solid #2d2d44; text-align: center;">
-                                        <span style="padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; ${r.status_code === 200 ? 'background: rgba(52, 211, 153, 0.2); color: #34d399;' : 'background: rgba(252, 165, 165, 0.2); color: #fca5a5;'}">${r.status_code}</span>
+                                <tr style="transition: background 0.2s;">
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid rgba(61, 61, 92, 0.5); color: #e2e8f0;">${new Date(r.created_at).toLocaleString()}</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid rgba(61, 61, 92, 0.5); color: #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 12px;">${r.model}</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid rgba(61, 61, 92, 0.5); text-align: right; color: #e2e8f0; font-weight: 600;">${r.total_tokens.toLocaleString()}</td>
+                                    <td style="padding: 12px 16px; border-bottom: 1px solid rgba(61, 61, 92, 0.5); text-align: center;">
+                                        <span style="padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; ${r.status_code === 200 ? 'background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3);' : 'background: rgba(252, 165, 165, 0.15); color: #fca5a5; border: 1px solid rgba(252, 165, 165, 0.3);'}">${r.status_code}</span>
                                     </td>
                                 </tr>
                             `).join('')
