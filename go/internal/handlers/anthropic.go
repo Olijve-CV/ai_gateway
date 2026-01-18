@@ -93,11 +93,11 @@ func (h *Handler) handleAnthropicToAnthropic(c echo.Context, req *models.Message
 	return c.JSON(statusCode, resp)
 }
 
-// handleAnthropicToOpenAI converts and forwards to OpenAI
+// handleAnthropicToOpenAI converts and forwards to OpenAI using /responses endpoint
 func (h *Handler) handleAnthropicToOpenAI(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
-	middleware.LogTrace(c, "Anthropic->OpenAI", "Converting request")
-	// Convert request
-	openaiReq, err := converters.AnthropicToOpenAIRequest(req)
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Converting request to Responses API format")
+	// Convert request to OpenAI Responses API format
+	openaiReq, err := converters.AnthropicToOpenAIResponsesRequest(req)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic->OpenAI", "Conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -107,12 +107,12 @@ func (h *Handler) handleAnthropicToOpenAI(c echo.Context, req *models.MessagesRe
 	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
 
 	if req.Stream {
-		middleware.LogTrace(c, "Anthropic->OpenAI", "Starting streaming request")
-		return h.streamAnthropicFromOpenAI(c, adapter, openaiReq, req.Model)
+		middleware.LogTrace(c, "Anthropic->OpenAI", "Starting streaming request to /responses")
+		return h.streamAnthropicFromOpenAIResponses(c, adapter, openaiReq, req.Model)
 	}
 
-	middleware.LogTrace(c, "Anthropic->OpenAI", "Sending non-streaming request")
-	resp, statusCode, err := adapter.ChatCompletions(c.Request().Context(), openaiReq)
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Sending non-streaming request to /responses")
+	resp, statusCode, err := adapter.Responses(c.Request().Context(), openaiReq)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic->OpenAI", "Upstream error: %v", err)
 		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
@@ -120,8 +120,8 @@ func (h *Handler) handleAnthropicToOpenAI(c echo.Context, req *models.MessagesRe
 
 	middleware.LogTrace(c, "Anthropic->OpenAI", "Received response: statusCode=%d, resp=%v", statusCode, resp)
 
-	// Convert response
-	anthropicResp, err := converters.OpenAIToAnthropicResponse(resp, req.Model)
+	// Convert response from OpenAI Responses API format
+	anthropicResp, err := converters.OpenAIResponsesToAnthropicResponse(resp, req.Model)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic->OpenAI", "Response conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -203,10 +203,10 @@ func (h *Handler) streamAnthropic(c echo.Context, adapter *adapters.AnthropicAda
 	return nil
 }
 
-// streamAnthropicFromOpenAI streams and converts OpenAI response to Anthropic format
-func (h *Handler) streamAnthropicFromOpenAI(c echo.Context, adapter *adapters.OpenAIAdapter, req *models.ChatCompletionRequest, model string) error {
-	req.Stream = true
-	stream, statusCode, err := adapter.ChatCompletionsStream(c.Request().Context(), req)
+// streamAnthropicFromOpenAIResponses streams and converts OpenAI Responses API response to Anthropic format
+func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *adapters.OpenAIAdapter, req map[string]interface{}, model string) error {
+	req["stream"] = true
+	stream, statusCode, err := adapter.ResponsesStream(c.Request().Context(), req)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
 	}
@@ -247,7 +247,7 @@ func (h *Handler) streamAnthropicFromOpenAI(c echo.Context, adapter *adapters.Op
 				continue
 			}
 
-			events, err := converters.OpenAIStreamToAnthropicStream(eventData, isFirst)
+			events, err := converters.OpenAIResponsesStreamToAnthropicStream(eventData, isFirst)
 			if err != nil {
 				continue
 			}
