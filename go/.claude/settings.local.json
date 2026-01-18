@@ -11,7 +11,18 @@
       "Bash(ping:*)",
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(del \"E:\\\\WorkSpace\\\\Olijve-CV\\\\ai_gateway\\\\go\\\\data\\\\ai_gateway.db\")",
+      "Bash(xargs:*)",
+      "Bash(/c/Windows/System32/taskkill.exe //PID 12960 //F)",
+      "Bash(/c/Windows/System32/taskkill.exe //PID 2208 //F)",
+      "Bash(sqlite3:*)",
+      "Bash(/c/Windows/System32/taskkill.exe //PID 19260 //F)",
+      "Bash(/c/Windows/System32/taskkill.exe:*)",
+      "Bash(powershell:*)",
+      "Bash(openssl rand:*)",
+      "Bash(go build:*)",
+      "Bash(go get:*)"
     ]
   }
 }

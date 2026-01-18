@@ -1280,7 +1280,7 @@
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (configsResp.ok) {
-                allProviderConfigs = await configsResp.json();
+                allProviderConfigs = await configsResp.json() || [];
             }
 
             const keysResp = await fetch('/api/keys', {
@@ -1288,7 +1288,7 @@
             });
 
             if (keysResp.ok) {
-                allKeys = await keysResp.json();
+                allKeys = await keysResp.json() || [];
                 renderKeys();
             }
         } catch (error) {
@@ -1377,7 +1377,7 @@
     // ===== Render Provider Configs =====
     function renderProviderConfigs(selectedIds = []) {
         const container = document.getElementById('provider-configs-list');
-        const activeConfigs = allProviderConfigs.filter(c => c.is_active);
+        const activeConfigs = (allProviderConfigs || []).filter(c => c.is_active);
 
         if (!activeConfigs || activeConfigs.length === 0) {
             container.innerHTML = `

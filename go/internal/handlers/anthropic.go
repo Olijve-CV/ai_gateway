@@ -16,49 +16,76 @@ import (
 
 // AnthropicMessages handles POST /v1/messages
 func (h *Handler) AnthropicMessages(c echo.Context) error {
+	middleware.LogTrace(c, "Anthropic", "Handling messages request")
+
+	// Log headers
+	middleware.LogHeaders(c, "Anthropic")
+
 	// Parse request
 	var req models.MessagesRequest
 	if err := c.Bind(&req); err != nil {
+		middleware.LogTrace(c, "Anthropic", "Failed to parse request body: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
+
+	// Log request body
+	middleware.LogRequestBody(c, "Anthropic", req)
+
+	middleware.LogTrace(c, "Anthropic", "Parsed request: model=%s, messages=%d, stream=%v", req.Model, len(req.Messages), req.Stream)
 
 	// Determine target provider from model name
 	provider := getTargetProvider(req.Model)
 	if provider == "" {
+		middleware.LogTrace(c, "Anthropic", "Unsupported model: %s", req.Model)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
 	}
+
+	middleware.LogTrace(c, "Anthropic", "Target provider: %s", provider)
 
 	// Get credentials
 	baseURL, apiKey, err := h.getCredentials(c, provider)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic", "Failed to get credentials: %v", err)
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 	}
+
+	middleware.LogTrace(c, "Anthropic", "Got credentials: baseURL=%s, apiKeyLen=%d", baseURL, len(apiKey))
 
 	// Route to appropriate handler
 	switch provider {
 	case "anthropic":
+		middleware.LogTrace(c, "Anthropic", "Routing to Anthropic handler")
 		return h.handleAnthropicToAnthropic(c, &req, baseURL, apiKey)
 	case "openai":
+		middleware.LogTrace(c, "Anthropic", "Routing to OpenAI handler")
 		return h.handleAnthropicToOpenAI(c, &req, baseURL, apiKey)
 	case "gemini":
+		middleware.LogTrace(c, "Anthropic", "Routing to Gemini handler")
 		return h.handleAnthropicToGemini(c, &req, baseURL, apiKey)
 	default:
+		middleware.LogTrace(c, "Anthropic", "Unsupported provider: %s", provider)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported provider")
 	}
 }
 
 // handleAnthropicToAnthropic forwards request directly to Anthropic
 func (h *Handler) handleAnthropicToAnthropic(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
+	middleware.LogTrace(c, "Anthropic->Anthropic", "Creating adapter with baseURL=%s", baseURL)
 	adapter := adapters.NewAnthropicAdapter(apiKey, baseURL)
 
 	if req.Stream {
+		middleware.LogTrace(c, "Anthropic->Anthropic", "Starting streaming request")
 		return h.streamAnthropic(c, adapter, req)
 	}
 
+	middleware.LogTrace(c, "Anthropic->Anthropic", "Sending non-streaming request")
 	resp, statusCode, err := adapter.Messages(c.Request().Context(), req)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic->Anthropic", "Upstream error: %v", err)
 		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
 	}
+
+	middleware.LogTrace(c, "Anthropic->Anthropic", "Received response: statusCode=%d", statusCode)
 
 	// Record usage
 	h.recordAnthropicUsage(c, "/v1/messages", req.Model, resp, statusCode)
@@ -68,26 +95,35 @@ func (h *Handler) handleAnthropicToAnthropic(c echo.Context, req *models.Message
 
 // handleAnthropicToOpenAI converts and forwards to OpenAI
 func (h *Handler) handleAnthropicToOpenAI(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Converting request")
 	// Convert request
 	openaiReq, err := converters.AnthropicToOpenAIRequest(req)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic->OpenAI", "Conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Creating adapter with baseURL=%s, model=%s", baseURL, req.Model)
 	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
 
 	if req.Stream {
+		middleware.LogTrace(c, "Anthropic->OpenAI", "Starting streaming request")
 		return h.streamAnthropicFromOpenAI(c, adapter, openaiReq, req.Model)
 	}
 
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Sending non-streaming request")
 	resp, statusCode, err := adapter.ChatCompletions(c.Request().Context(), openaiReq)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic->OpenAI", "Upstream error: %v", err)
 		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
 	}
+
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Received response: statusCode=%d, resp=%v", statusCode, resp)
 
 	// Convert response
 	anthropicResp, err := converters.OpenAIToAnthropicResponse(resp, req.Model)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic->OpenAI", "Response conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
@@ -99,26 +135,35 @@ func (h *Handler) handleAnthropicToOpenAI(c echo.Context, req *models.MessagesRe
 
 // handleAnthropicToGemini converts and forwards to Gemini
 func (h *Handler) handleAnthropicToGemini(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
+	middleware.LogTrace(c, "Anthropic->Gemini", "Converting request")
 	// Convert request
 	geminiReq, err := converters.AnthropicToGeminiRequest(req)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic->Gemini", "Conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	middleware.LogTrace(c, "Anthropic->Gemini", "Creating adapter with baseURL=%s", baseURL)
 	adapter := adapters.NewGeminiAdapter(apiKey, baseURL)
 
 	if req.Stream {
+		middleware.LogTrace(c, "Anthropic->Gemini", "Starting streaming request")
 		return h.streamAnthropicFromGemini(c, adapter, geminiReq, req.Model)
 	}
 
+	middleware.LogTrace(c, "Anthropic->Gemini", "Sending non-streaming request")
 	resp, statusCode, err := adapter.GenerateContent(c.Request().Context(), req.Model, geminiReq)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic->Gemini", "Upstream error: %v", err)
 		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
 	}
+
+	middleware.LogTrace(c, "Anthropic->Gemini", "Received response: statusCode=%d", statusCode)
 
 	// Convert response
 	anthropicResp, err := converters.GeminiToAnthropicResponse(resp, req.Model)
 	if err != nil {
+		middleware.LogTrace(c, "Anthropic->Gemini", "Response conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 

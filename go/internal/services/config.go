@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 
 	"ai_gateway/internal/config"
 	"ai_gateway/internal/database"
@@ -209,7 +210,18 @@ func (s *ConfigService) GetDefaultConfig(userID uint, provider string) (*databas
 func (s *ConfigService) DecryptAPIKey(cfg *database.ProviderConfig) (string, error) {
 	encKey, err := s.cfg.GetEncryptionKeyBytes()
 	if err != nil {
+		log.Printf("[DECRYPT] Failed to get encryption key bytes: %v", err)
 		return "", err
 	}
-	return utils.DecryptAPIKey(cfg.EncryptedKey, encKey)
+	log.Printf("[DECRYPT] ENCRYPTION_KEY (base64): %s", s.cfg.EncryptionKey)
+	log.Printf("[DECRYPT] EncryptedKey from DB: %s", cfg.EncryptedKey)
+	log.Printf("[DECRYPT] EncKey bytes length: %d", len(encKey))
+
+	result, err := utils.DecryptAPIKey(cfg.EncryptedKey, encKey)
+	if err != nil {
+		log.Printf("[DECRYPT] Decryption failed: %v", err)
+		return "", err
+	}
+	log.Printf("[DECRYPT] Decryption successful, key length: %d", len(result))
+	return result, nil
 }

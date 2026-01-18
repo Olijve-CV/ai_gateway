@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"log"
 	"os"
 
 	"github.com/kelseyhightower/envconfig"
@@ -60,6 +61,10 @@ func Load() (*Config, error) {
 	if err := os.MkdirAll("data", 0755); err != nil {
 		return nil, err
 	}
+
+	// Debug: Print encryption key and JWT secret
+	log.Printf("[CONFIG] ENCRYPTION_KEY loaded: %s", cfg.EncryptionKey)
+	log.Printf("[CONFIG] JWT_SECRET loaded: %s", cfg.JWTSecret)
 
 	return &cfg, nil
 }

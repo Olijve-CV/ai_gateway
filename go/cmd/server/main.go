@@ -14,11 +14,17 @@ import (
 	"ai_gateway/internal/handlers"
 	"ai_gateway/internal/middleware"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	echomw "github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
+	// Load .env file if it exists
+	if err := godotenv.Load(); err != nil {
+		log.Printf("No .env file found or error loading: %v", err)
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -100,6 +106,7 @@ func main() {
 	// AI Gateway routes (API Key or JWT auth)
 	v1 := e.Group("/v1", middleware.GatewayAuth(db, cfg))
 	v1.POST("/chat/completions", h.OpenAIChatCompletions)
+	v1.POST("/responses", h.OpenAICodeResponses)
 	v1.POST("/messages", h.AnthropicMessages)
 	v1.POST("/models/:model", h.GeminiGenerateContent)
 
