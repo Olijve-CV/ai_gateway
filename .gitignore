@@ -37,3 +37,7 @@ logs/
 .DS_Store
 Thumbs.db
 tmp*-cwd
+go/tmp*-cwd
+null
+go/null
+py/null
