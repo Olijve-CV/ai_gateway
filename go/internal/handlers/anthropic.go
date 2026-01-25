@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"ai_gateway/internal/adapters"
 	"ai_gateway/internal/converters"
@@ -250,13 +251,27 @@ func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *ad
 	}
 	defer stream.Close()
 
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Starting response stream: statusCode=%d, model=%s", statusCode, model)
+
 	c.Response().Header().Set("Content-Type", "text/event-stream")
 	c.Response().Header().Set("Cache-Control", "no-cache")
 	c.Response().Header().Set("Connection", "keep-alive")
+	middleware.LogTrace(c, "Anthropic->OpenAI", "=== Response Headers ===")
+	for name, values := range c.Response().Header() {
+		for _, value := range values {
+			middleware.LogTrace(c, "Anthropic->OpenAI", "  %s: %s", name, value)
+		}
+	}
 	c.Response().WriteHeader(statusCode)
 
 	reader := stream.GetReader()
 	isFirst := true
+	start := time.Now()
+	lastProgressLog := start
+	var lineCount int
+	var dataLineCount int
+	var byteCount int
+	done := false
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -264,19 +279,30 @@ func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *ad
 			if err == io.EOF {
 				break
 			}
+			middleware.LogTrace(c, "Anthropic->OpenAI", "Stream read error after %s: %v (lines=%d, dataLines=%d, bytes=%d)", time.Since(start), err, lineCount, dataLineCount, byteCount)
 			return err
 		}
 
-		line = strings.TrimSpace(line)
-		if line == "" {
+		lineCount++
+		byteCount += len(line)
+
+		if time.Since(lastProgressLog) >= 5*time.Second {
+			middleware.LogTrace(c, "Anthropic->OpenAI", "Stream progress: elapsed=%s, lines=%d, dataLines=%d, bytes=%d", time.Since(start), lineCount, dataLineCount, byteCount)
+			lastProgressLog = time.Now()
+		}
+
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" {
 			continue
 		}
 
-		if strings.HasPrefix(line, "data:") {
-			data := strings.TrimPrefix(line, "data:")
+		if strings.HasPrefix(trimmedLine, "data:") {
+			dataLineCount++
+			data := strings.TrimPrefix(trimmedLine, "data:")
 			data = strings.TrimSpace(data)
 
 			if data == "[DONE]" {
+				done = true
 				break
 			}
 
@@ -300,6 +326,12 @@ func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *ad
 			isFirst = false
 		}
 	}
+
+	endReason := "eof"
+	if done {
+		endReason = "done"
+	}
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Stream completed: reason=%s, duration=%s, lines=%d, dataLines=%d, bytes=%d", endReason, time.Since(start), lineCount, dataLineCount, byteCount)
 
 	return nil
 }
