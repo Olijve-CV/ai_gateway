@@ -249,28 +249,62 @@ func (h *Handler) streamResponses(c echo.Context, adapter *adapters.OpenAIAdapte
 	}
 	defer stream.Close()
 
+	model, _ := req["model"].(string)
+	middleware.LogTrace(c, "OpenAI-Responses", "Starting stream: statusCode=%d, model=%s", statusCode, model)
+
 	c.Response().Header().Set("Content-Type", "text/event-stream")
 	c.Response().Header().Set("Cache-Control", "no-cache")
 	c.Response().Header().Set("Connection", "keep-alive")
+	middleware.LogTrace(c, "OpenAI-Responses", "=== Response Headers ===")
+	for name, values := range c.Response().Header() {
+		for _, value := range values {
+			middleware.LogTrace(c, "OpenAI-Responses", "  %s: %s", name, value)
+		}
+	}
 	c.Response().WriteHeader(statusCode)
 
 	reader := stream.GetReader()
+	start := time.Now()
+	lastProgressLog := start
+	var lineCount int
+	var dataLineCount int
+	var byteCount int
+	done := false
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
+			middleware.LogTrace(c, "OpenAI-Responses", "Stream read error after %s: %v (lines=%d, dataLines=%d, bytes=%d)", time.Since(start), err, lineCount, dataLineCount, byteCount)
 			return err
+		}
+
+		lineCount++
+		byteCount += len(line)
+		if strings.HasPrefix(line, "data:") {
+			dataLineCount++
 		}
 
 		c.Response().Write([]byte(line))
 		c.Response().Flush()
 
+		if time.Since(lastProgressLog) >= 5*time.Second {
+			middleware.LogTrace(c, "OpenAI-Responses", "Stream progress: elapsed=%s, lines=%d, dataLines=%d, bytes=%d", time.Since(start), lineCount, dataLineCount, byteCount)
+			lastProgressLog = time.Now()
+		}
+
 		if strings.HasPrefix(line, "data: [DONE]") {
+			done = true
 			break
 		}
 	}
+
+	endReason := "eof"
+	if done {
+		endReason = "done"
+	}
+	middleware.LogTrace(c, "OpenAI-Responses", "Stream completed: reason=%s, duration=%s, lines=%d, dataLines=%d, bytes=%d", endReason, time.Since(start), lineCount, dataLineCount, byteCount)
 
 	return nil
 }
