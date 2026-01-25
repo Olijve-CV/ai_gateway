@@ -159,7 +159,13 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, request interface{}
 	}
 
 	start := time.Now()
+	prettyBody := string(jsonBody)
+	var prettyBuf bytes.Buffer
+	if err := json.Indent(&prettyBuf, jsonBody, "", "  "); err == nil {
+		prettyBody = prettyBuf.String()
+	}
 	log.Printf("[OpenAIAdapter] ResponsesStream start: url=%s, requestBytes=%d", url, len(jsonBody))
+	log.Printf("[OpenAIAdapter] ResponsesStream requestBody:\n%s", prettyBody)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
@@ -170,6 +176,7 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, request interface{}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.apiKey))
 	req.Header.Set("Accept", "text/event-stream")
 
+    log.Printf("[OpenAIAdapter] ResponsesStream HeaderApiKey: %s", a.apiKey)
 	resp, err := a.client.Do(req)
 	if err != nil {
 		log.Printf("[OpenAIAdapter] ResponsesStream error after %s: %v", time.Since(start), err)
