@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -157,6 +158,9 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, request interface{}
 		return nil, 0, err
 	}
 
+	start := time.Now()
+	log.Printf("[OpenAIAdapter] ResponsesStream start: url=%s, requestBytes=%d", url, len(jsonBody))
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, 0, err
@@ -168,8 +172,10 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, request interface{}
 
 	resp, err := a.client.Do(req)
 	if err != nil {
+		log.Printf("[OpenAIAdapter] ResponsesStream error after %s: %v", time.Since(start), err)
 		return nil, 0, err
 	}
+	log.Printf("[OpenAIAdapter] ResponsesStream opened: statusCode=%d, elapsed=%s", resp.StatusCode, time.Since(start))
 
 	return &StreamReader{
 		reader: bufio.NewReader(resp.Body),
