@@ -43,28 +43,31 @@ func (h *Handler) AnthropicMessages(c echo.Context) error {
 	middleware.LogTrace(c, "Anthropic", "Target provider: %s", provider)
 
 	// Get credentials
-	baseURL, apiKey, err := h.getCredentials(c, provider)
+	baseURL, apiKey, protocol, err := h.getCredentials(c, provider)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic", "Failed to get credentials: %v", err)
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 	}
 
-	middleware.LogTrace(c, "Anthropic", "Got credentials: baseURL=%s, apiKeyLen=%d", baseURL, len(apiKey))
+	middleware.LogTrace(c, "Anthropic", "Got credentials: baseURL=%s, apiKeyLen=%d, protocol=%s", baseURL, len(apiKey), protocol)
 
 	// Route to appropriate handler
-	switch provider {
+	switch protocol {
 	case "anthropic":
 		middleware.LogTrace(c, "Anthropic", "Routing to Anthropic handler")
 		return h.handleAnthropicToAnthropic(c, &req, baseURL, apiKey)
-	case "openai":
-		middleware.LogTrace(c, "Anthropic", "Routing to OpenAI handler")
+	case "openai_chat":
+		middleware.LogTrace(c, "Anthropic", "Routing to OpenAI chat handler")
+		return h.handleAnthropicToOpenAIChat(c, &req, baseURL, apiKey)
+	case "openai_code":
+		middleware.LogTrace(c, "Anthropic", "Routing to OpenAI responses handler")
 		return h.handleAnthropicToOpenAI(c, &req, baseURL, apiKey)
 	case "gemini":
 		middleware.LogTrace(c, "Anthropic", "Routing to Gemini handler")
 		return h.handleAnthropicToGemini(c, &req, baseURL, apiKey)
 	default:
-		middleware.LogTrace(c, "Anthropic", "Unsupported provider: %s", provider)
-		return echo.NewHTTPError(http.StatusBadRequest, "unsupported provider")
+		middleware.LogTrace(c, "Anthropic", "Unsupported protocol: %s", protocol)
+		return echo.NewHTTPError(http.StatusBadRequest, "unsupported protocol")
 	}
 }
 
@@ -91,6 +94,41 @@ func (h *Handler) handleAnthropicToAnthropic(c echo.Context, req *models.Message
 	h.recordAnthropicUsage(c, "/v1/messages", req.Model, resp, statusCode)
 
 	return c.JSON(statusCode, resp)
+}
+
+// handleAnthropicToOpenAIChat converts and forwards to OpenAI chat completions
+func (h *Handler) handleAnthropicToOpenAIChat(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
+	middleware.LogTrace(c, "Anthropic->OpenAIChat", "Converting request to Chat Completions format")
+	openaiReq, err := converters.AnthropicToOpenAIRequest(req)
+	if err != nil {
+		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Conversion error: %v", err)
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	middleware.LogTrace(c, "Anthropic->OpenAIChat", "Creating adapter with baseURL=%s, model=%s", baseURL, req.Model)
+	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
+
+	if req.Stream {
+		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Starting streaming request to /chat/completions")
+		return h.streamAnthropicFromOpenAIChat(c, adapter, openaiReq, req.Model)
+	}
+
+	middleware.LogTrace(c, "Anthropic->OpenAIChat", "Sending non-streaming request to /chat/completions")
+	resp, statusCode, err := adapter.ChatCompletions(c.Request().Context(), openaiReq)
+	if err != nil {
+		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Upstream error: %v", err)
+		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+	}
+
+	anthropicResp, err := converters.OpenAIToAnthropicResponse(resp, req.Model)
+	if err != nil {
+		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Response conversion error: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	h.recordAnthropicUsageFromResp(c, "/v1/messages", req.Model, anthropicResp, statusCode)
+
+	return c.JSON(statusCode, anthropicResp)
 }
 
 // handleAnthropicToOpenAI converts and forwards to OpenAI using /responses endpoint
@@ -248,6 +286,69 @@ func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *ad
 			}
 
 			events, err := converters.OpenAIResponsesStreamToAnthropicStream(eventData, isFirst)
+			if err != nil {
+				continue
+			}
+
+			for _, event := range events {
+				c.Response().Write([]byte("event: message\ndata: "))
+				c.Response().Write(event)
+				c.Response().Write([]byte("\n\n"))
+				c.Response().Flush()
+			}
+
+			isFirst = false
+		}
+	}
+
+	return nil
+}
+
+// streamAnthropicFromOpenAIChat streams and converts OpenAI chat completion response to Anthropic format
+func (h *Handler) streamAnthropicFromOpenAIChat(c echo.Context, adapter *adapters.OpenAIAdapter, req *models.ChatCompletionRequest, model string) error {
+	req.Stream = true
+	stream, statusCode, err := adapter.ChatCompletionsStream(c.Request().Context(), req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+	}
+	defer stream.Close()
+
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().WriteHeader(statusCode)
+
+	reader := stream.GetReader()
+	isFirst := true
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "event:") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "data:") {
+			data := strings.TrimPrefix(line, "data:")
+			data = strings.TrimSpace(data)
+
+			if data == "[DONE]" {
+				break
+			}
+
+			var eventData map[string]interface{}
+			if err := json.Unmarshal([]byte(data), &eventData); err != nil {
+				continue
+			}
+
+			events, err := converters.OpenAIStreamToAnthropicStream(eventData, isFirst)
 			if err != nil {
 				continue
 			}

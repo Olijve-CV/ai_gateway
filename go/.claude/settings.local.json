@@ -22,7 +22,15 @@
       "Bash(powershell:*)",
       "Bash(openssl rand:*)",
       "Bash(go build:*)",
-      "Bash(go get:*)"
+      "Bash(go get:*)",
+      "WebSearch",
+      "Bash(xxd:*)",
+      "Bash(awk:*)",
+      "Bash(go vet:*)",
+      "Bash(go test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: route AnthropicMessages to OpenAI /responses endpoint for GPT models\n\nWhen using GPT models \\(gpt-*, o1-*, o3-*\\) via /v1/messages endpoint,\nrequests are now routed to OpenAI''s /responses API instead of\n/chat/completions for better compatibility.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)"
     ]
   }
 }

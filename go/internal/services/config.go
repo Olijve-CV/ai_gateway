@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"log"
+	"strings"
 
 	"ai_gateway/internal/config"
 	"ai_gateway/internal/database"
@@ -27,14 +28,16 @@ type ProviderConfigCreate struct {
 	Provider string `json:"provider" validate:"required,oneof=openai anthropic gemini"`
 	Name     string `json:"name" validate:"required,min=1,max=100"`
 	BaseURL  string `json:"base_url"`
+	Protocol string `json:"protocol" validate:"oneof=anthropic openai_chat openai_code gemini"`
 	APIKey   string `json:"api_key" validate:"required"`
 }
 
 // ProviderConfigUpdate represents a request to update a provider config
 type ProviderConfigUpdate struct {
-	Name    *string `json:"name"`
-	BaseURL *string `json:"base_url"`
-	APIKey  *string `json:"api_key"`
+	Name     *string `json:"name"`
+	BaseURL  *string `json:"base_url"`
+	Protocol *string `json:"protocol"`
+	APIKey   *string `json:"api_key"`
 }
 
 // GetConfigs returns all provider configs for a user
@@ -88,6 +91,11 @@ func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*d
 		}
 	}
 
+	protocol := normalizeProtocol(strings.TrimSpace(req.Protocol))
+	if err := validateProtocol(protocol); err != nil {
+		return nil, err
+	}
+
 	// Check if this is the first config for this provider (make it default)
 	var count int64
 	s.db.Model(&database.ProviderConfig{}).Where("user_id = ? AND provider = ?", userID, req.Provider).Count(&count)
@@ -98,6 +106,7 @@ func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*d
 		Provider:     req.Provider,
 		Name:         req.Name,
 		BaseURL:      baseURL,
+		Protocol:     protocol,
 		EncryptedKey: encryptedKey,
 		KeyHint:      utils.GetAPIKeyHint(req.APIKey),
 		IsDefault:    isDefault,
@@ -126,6 +135,14 @@ func (s *ConfigService) UpdateConfig(userID, configID uint, req *ProviderConfigU
 
 	if req.BaseURL != nil {
 		updates["base_url"] = *req.BaseURL
+	}
+
+	if req.Protocol != nil {
+		protocol := normalizeProtocol(strings.TrimSpace(*req.Protocol))
+		if err := validateProtocol(protocol); err != nil {
+			return nil, err
+		}
+		updates["protocol"] = protocol
 	}
 
 	if req.APIKey != nil {
@@ -224,4 +241,20 @@ func (s *ConfigService) DecryptAPIKey(cfg *database.ProviderConfig) (string, err
 	}
 	log.Printf("[DECRYPT] Decryption successful, key length: %d", len(result))
 	return result, nil
+}
+
+func normalizeProtocol(protocol string) string {
+	if protocol == "" {
+		return "openai_chat"
+	}
+	return protocol
+}
+
+func validateProtocol(protocol string) error {
+	switch protocol {
+	case "openai_chat", "openai_code", "anthropic", "gemini":
+		return nil
+	default:
+		return errors.New("unsupported protocol")
+	}
 }

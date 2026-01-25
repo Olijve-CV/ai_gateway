@@ -23,6 +23,7 @@ type ProviderConfig struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	UserID       uint      `gorm:"index;not null" json:"user_id"`
 	Provider     string    `gorm:"size:20;index;not null" json:"provider"` // openai, anthropic, gemini
+	Protocol     string    `gorm:"size:20;default:openai_chat" json:"protocol"`
 	Name         string    `gorm:"size:100;not null" json:"name"`
 	BaseURL      string    `gorm:"size:255" json:"base_url"`
 	EncryptedKey string    `gorm:"size:500;not null" json:"-"`

@@ -37,21 +37,23 @@ func (h *Handler) GeminiGenerateContent(c echo.Context) error {
 	}
 
 	// Get credentials
-	baseURL, apiKey, err := h.getCredentials(c, provider)
+	baseURL, apiKey, protocol, err := h.getCredentials(c, provider)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 	}
 
 	// Route to appropriate handler
-	switch provider {
+	switch protocol {
 	case "gemini":
 		return h.handleGeminiToGemini(c, &req, model, baseURL, apiKey, isStream)
-	case "openai":
+	case "openai_chat":
 		return h.handleGeminiToOpenAI(c, &req, model, baseURL, apiKey, isStream)
+	case "openai_code":
+		return h.handleGeminiToOpenAIResponses(c, &req, model, baseURL, apiKey, isStream)
 	case "anthropic":
 		return h.handleGeminiToAnthropic(c, &req, model, baseURL, apiKey, isStream)
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "unsupported provider")
+		return echo.NewHTTPError(http.StatusBadRequest, "unsupported protocol")
 	}
 }
 
@@ -100,6 +102,49 @@ func (h *Handler) handleGeminiToOpenAI(c echo.Context, req *models.GenerateConte
 	}
 
 	// Record usage
+	h.recordGeminiUsageFromResp(c, "/v1/models/"+model, model, geminiResp, statusCode)
+
+	return c.JSON(statusCode, geminiResp)
+}
+
+// handleGeminiToOpenAIResponses converts and forwards to OpenAI Responses API
+func (h *Handler) handleGeminiToOpenAIResponses(c echo.Context, req *models.GenerateContentRequest, model, baseURL, apiKey string, isStream bool) error {
+	openaiChatReq, err := converters.GeminiToOpenAIRequest(req, model)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	openaiResponsesReq, err := converters.OpenAIChatToOpenAIResponsesRequest(openaiChatReq)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
+
+	if isStream {
+		return h.streamGeminiFromOpenAIResponses(c, adapter, openaiResponsesReq, model)
+	}
+
+	resp, statusCode, err := adapter.Responses(c.Request().Context(), openaiResponsesReq)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+	}
+
+	chatResp, err := converters.OpenAIResponsesToOpenAIChatResponse(resp, model)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	chatRespMap, err := converters.ChatCompletionResponseToMap(chatResp)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	geminiResp, err := converters.OpenAIToGeminiResponse(chatRespMap)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
 	h.recordGeminiUsageFromResp(c, "/v1/models/"+model, model, geminiResp, statusCode)
 
 	return c.JSON(statusCode, geminiResp)
@@ -220,6 +265,80 @@ func (h *Handler) streamGeminiFromOpenAI(c echo.Context, adapter *adapters.OpenA
 			c.Response().Flush()
 		}
 	}
+
+	return nil
+}
+
+// streamGeminiFromOpenAIResponses streams and converts OpenAI Responses stream to Gemini format
+func (h *Handler) streamGeminiFromOpenAIResponses(c echo.Context, adapter *adapters.OpenAIAdapter, req map[string]interface{}, model string) error {
+	req["stream"] = true
+	stream, statusCode, err := adapter.ResponsesStream(c.Request().Context(), req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+	}
+	defer stream.Close()
+
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().WriteHeader(statusCode)
+
+	reader := stream.GetReader()
+	state := converters.NewOpenAIResponsesToChatStreamState(model)
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "event:") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "data:") {
+			data := strings.TrimPrefix(line, "data:")
+			data = strings.TrimSpace(data)
+
+			if data == "[DONE]" {
+				break
+			}
+
+			var eventData map[string]interface{}
+			if err := json.Unmarshal([]byte(data), &eventData); err != nil {
+				continue
+			}
+
+			chunks, err := converters.OpenAIResponsesStreamToOpenAIChatStream(eventData, state)
+			if err != nil {
+				continue
+			}
+
+			for _, chunk := range chunks {
+				var chatEvent map[string]interface{}
+				if err := json.Unmarshal(chunk, &chatEvent); err != nil {
+					continue
+				}
+
+				geminiChunk, err := converters.OpenAIStreamToGeminiStream(chatEvent)
+				if err != nil || geminiChunk == nil {
+					continue
+				}
+
+				c.Response().Write([]byte("data: "))
+				c.Response().Write(geminiChunk)
+				c.Response().Write([]byte("\n\n"))
+				c.Response().Flush()
+			}
+		}
+	}
+
+	c.Response().Write([]byte("data: [DONE]\n\n"))
+	c.Response().Flush()
 
 	return nil
 }

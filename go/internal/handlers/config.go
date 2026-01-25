@@ -15,6 +15,7 @@ type ProviderConfigRequest struct {
 	Provider string  `json:"provider"`
 	Name     string  `json:"name"`
 	BaseURL  *string `json:"base_url"`
+	Protocol *string `json:"protocol"`
 	APIKey   *string `json:"api_key"`
 }
 
@@ -24,6 +25,7 @@ type ProviderConfigResponse struct {
 	Provider  string `json:"provider"`
 	Name      string `json:"name"`
 	BaseURL   string `json:"base_url"`
+	Protocol  string `json:"protocol"`
 	KeyHint   string `json:"key_hint"`
 	IsDefault bool   `json:"is_default"`
 	IsActive  bool   `json:"is_active"`
@@ -48,6 +50,7 @@ func (h *Handler) GetProviderConfigs(c echo.Context) error {
 			Provider:  cfg.Provider,
 			Name:      cfg.Name,
 			BaseURL:   cfg.BaseURL,
+			Protocol:  normalizeProtocol(cfg.Protocol),
 			KeyHint:   cfg.KeyHint,
 			IsDefault: cfg.IsDefault,
 			IsActive:  cfg.IsActive,
@@ -77,6 +80,7 @@ func (h *Handler) GetProviderConfigsByProvider(c echo.Context) error {
 			Provider:  cfg.Provider,
 			Name:      cfg.Name,
 			BaseURL:   cfg.BaseURL,
+			Protocol:  normalizeProtocol(cfg.Protocol),
 			KeyHint:   cfg.KeyHint,
 			IsDefault: cfg.IsDefault,
 			IsActive:  cfg.IsActive,
@@ -108,6 +112,7 @@ func (h *Handler) GetProviderConfigByID(c echo.Context) error {
 		Provider:  cfg.Provider,
 		Name:      cfg.Name,
 		BaseURL:   cfg.BaseURL,
+		Protocol:  normalizeProtocol(cfg.Protocol),
 		KeyHint:   cfg.KeyHint,
 		IsDefault: cfg.IsDefault,
 		IsActive:  cfg.IsActive,
@@ -139,6 +144,7 @@ func (h *Handler) CreateProviderConfig(c echo.Context) error {
 		Provider: req.Provider,
 		Name:     req.Name,
 		BaseURL:  baseURL,
+		Protocol: protocolValue(req.Protocol),
 		APIKey:   *req.APIKey,
 	}
 
@@ -152,6 +158,7 @@ func (h *Handler) CreateProviderConfig(c echo.Context) error {
 		Provider:  cfg.Provider,
 		Name:      cfg.Name,
 		BaseURL:   cfg.BaseURL,
+		Protocol:  normalizeProtocol(cfg.Protocol),
 		KeyHint:   cfg.KeyHint,
 		IsDefault: cfg.IsDefault,
 		IsActive:  cfg.IsActive,
@@ -178,6 +185,7 @@ func (h *Handler) UpdateProviderConfig(c echo.Context) error {
 	serviceReq := &services.ProviderConfigUpdate{
 		Name:    &req.Name,
 		BaseURL: req.BaseURL,
+		Protocol: req.Protocol,
 		APIKey:  req.APIKey,
 	}
 
@@ -191,6 +199,7 @@ func (h *Handler) UpdateProviderConfig(c echo.Context) error {
 		Provider:  cfg.Provider,
 		Name:      cfg.Name,
 		BaseURL:   cfg.BaseURL,
+		Protocol:  normalizeProtocol(cfg.Protocol),
 		KeyHint:   cfg.KeyHint,
 		IsDefault: cfg.IsDefault,
 		IsActive:  cfg.IsActive,
@@ -238,6 +247,7 @@ func (h *Handler) SetDefaultProviderConfig(c echo.Context) error {
 		Provider:  cfg.Provider,
 		Name:      cfg.Name,
 		BaseURL:   cfg.BaseURL,
+		Protocol:  normalizeProtocol(cfg.Protocol),
 		KeyHint:   cfg.KeyHint,
 		IsDefault: cfg.IsDefault,
 		IsActive:  cfg.IsActive,
@@ -266,6 +276,7 @@ func (h *Handler) ToggleProviderConfig(c echo.Context) error {
 		Provider:  cfg.Provider,
 		Name:      cfg.Name,
 		BaseURL:   cfg.BaseURL,
+		Protocol:  normalizeProtocol(cfg.Protocol),
 		KeyHint:   cfg.KeyHint,
 		IsDefault: cfg.IsDefault,
 		IsActive:  cfg.IsActive,
