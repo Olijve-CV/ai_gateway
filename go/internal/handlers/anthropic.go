@@ -142,6 +142,8 @@ func (h *Handler) handleAnthropicToOpenAI(c echo.Context, req *models.MessagesRe
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	enforceOpenAIReasoningHigh(openaiReq)
+
 	middleware.LogTrace(c, "Anthropic->OpenAI", "Creating adapter with baseURL=%s, model=%s", baseURL, req.Model)
 	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
 

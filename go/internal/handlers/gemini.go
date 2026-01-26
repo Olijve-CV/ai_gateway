@@ -119,6 +119,8 @@ func (h *Handler) handleGeminiToOpenAIResponses(c echo.Context, req *models.Gene
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	enforceOpenAIReasoningHigh(openaiResponsesReq)
+
 	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
 
 	if isStream {

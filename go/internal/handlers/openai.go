@@ -121,6 +121,7 @@ func (h *Handler) OpenAICodeResponses(c echo.Context) error {
 	stream, _ := reqBody["stream"].(bool)
 	switch protocol {
 	case "openai_code":
+		enforceOpenAIReasoningHigh(reqBody)
 		if stream {
 			middleware.LogTrace(c, "OpenAI-Responses", "Starting streaming request")
 			return h.streamResponses(c, openaiAdapter, reqBody)
@@ -342,6 +343,8 @@ func (h *Handler) handleOpenAIToOpenAIResponses(c echo.Context, req *models.Chat
 		middleware.LogTrace(c, "OpenAI->OpenAIResponses", "Conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
+
+	enforceOpenAIReasoningHigh(responsesReq)
 
 	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
 
@@ -1025,4 +1028,20 @@ func readSSEStream(reader *bufio.Reader) <-chan string {
 		}
 	}()
 	return ch
+}
+
+func enforceOpenAIReasoningHigh(req map[string]interface{}) {
+	if req == nil {
+		return
+	}
+
+	if reasoning, ok := req["reasoning"].(map[string]interface{}); ok {
+		reasoning["effort"] = "high"
+		req["reasoning"] = reasoning
+		return
+	}
+
+	req["reasoning"] = map[string]interface{}{
+		"effort": "high",
+	}
 }
