@@ -163,6 +163,11 @@
         .provider-tag.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); box-shadow: 0 2px 8px rgba(16, 163, 127, 0.3); }
         .provider-tag.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3); }
         .provider-tag.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3); }
+        /* Default styles for custom provider tags */
+        .provider-tag:not(.openai):not(.anthropic):not(.gemini) { 
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3); 
+        }
         .provider-tag:hover {
             transform: translateY(-1px);
         }
@@ -382,6 +387,11 @@
         .provider-logo.openai { background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%); box-shadow: 0 4px 15px rgba(16, 163, 127, 0.25); }
         .provider-logo.anthropic { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); box-shadow: 0 4px 15px rgba(217, 119, 6, 0.25); }
         .provider-logo.gemini { background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%); box-shadow: 0 4px 15px rgba(66, 133, 244, 0.25); }
+        /* Default styles for custom providers */
+        .provider-logo:not(.openai):not(.anthropic):not(.gemini) { 
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25); 
+        }
         .provider-group-info h4 {
             margin: 0;
             font-size: 15px;
@@ -1336,9 +1346,14 @@
                             </div>
                         </div>
                         <div class="provider-tags">
-                            ${(key.provider_configs || []).map(cfg =>
-                                `<span class="provider-tag ${cfg.provider}">${cfg.provider}</span>`
-                            ).join('')}
+                            ${(key.provider_configs || []).map(cfg => {
+                                let displayName = cfg.provider;
+                                // Use more friendly display name for custom providers
+                                if (!['openai', 'anthropic', 'gemini'].includes(cfg.provider)) {
+                                    displayName = cfg.provider.charAt(0).toUpperCase() + cfg.provider.slice(1);
+                                }
+                                return `<span class="provider-tag ${cfg.provider}">${displayName}</span>`;
+                            }).join('')}
                         </div>
                         <div class="key-card-stats">
                             <div class="stat-item">
@@ -1390,17 +1405,43 @@
             return;
         }
 
-        const grouped = {
-            openai: activeConfigs.filter(c => c.provider === 'openai'),
-            anthropic: activeConfigs.filter(c => c.provider === 'anthropic'),
-            gemini: activeConfigs.filter(c => c.provider === 'gemini')
-        };
+        // Group configs by provider, including custom providers
+        const grouped = {};
+        const customProviders = new Set();
+        
+        // First, group standard providers
+        grouped.openai = activeConfigs.filter(c => c.provider === 'openai');
+        grouped.anthropic = activeConfigs.filter(c => c.provider === 'anthropic');
+        grouped.gemini = activeConfigs.filter(c => c.provider === 'gemini');
+        
+        // Then group custom providers
+        activeConfigs.forEach(config => {
+            if (!['openai', 'anthropic', 'gemini'].includes(config.provider)) {
+                customProviders.add(config.provider);
+            }
+        });
+        
+        // Create groups for each custom provider
+        customProviders.forEach(provider => {
+            grouped[provider] = activeConfigs.filter(c => c.provider === provider);
+        });
 
         const providerMeta = {
             openai: { name: 'OpenAI', desc: 'GPT-4, GPT-3.5 等模型' },
             anthropic: { name: 'Anthropic', desc: 'Claude 系列模型' },
             gemini: { name: 'Gemini', desc: 'Google Gemini 模型' }
         };
+        
+        // Add metadata for custom providers
+        customProviders.forEach(provider => {
+            const configs = grouped[provider];
+            const firstConfig = configs[0];
+            // Use the provider name as display name, and the first config's name as description
+            providerMeta[provider] = { 
+                name: provider.charAt(0).toUpperCase() + provider.slice(1), 
+                desc: `自定义服务 - ${firstConfig.name}` 
+            };
+        });
 
         let html = '';
         for (const [provider, configs] of Object.entries(grouped)) {
