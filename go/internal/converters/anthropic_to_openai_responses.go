@@ -51,20 +51,16 @@ func AnthropicToOpenAIResponsesRequest(req *models.MessagesRequest) (map[string]
 	// Convert messages to input array
 	var input []map[string]interface{}
 	for _, msg := range req.Messages {
-		inputItem := map[string]interface{}{
-			"role": msg.Role,
-		}
+		var textContent string
+		var toolCalls []map[string]interface{}
+		var toolResultContent string
+		var toolUseID string
 
 		// Handle content
 		switch content := msg.Content.(type) {
 		case string:
-			inputItem["content"] = content
+			textContent = content
 		case []interface{}:
-			var textContent string
-			var toolCalls []map[string]interface{}
-			var toolResultContent string
-			var toolUseID string
-
 			for _, block := range content {
 				if blockMap, ok := block.(map[string]interface{}); ok {
 					blockType := getString(blockMap, "type")
@@ -92,20 +88,27 @@ func AnthropicToOpenAIResponsesRequest(req *models.MessagesRequest) (map[string]
 					}
 				}
 			}
+		}
 
-			if toolUseID != "" {
-				// This is a tool result message - in Responses API, use function_call_output
-				inputItem["type"] = "function_call_output"
-				inputItem["call_id"] = toolUseID
-				inputItem["output"] = toolResultContent
-				delete(inputItem, "role")
+		inputItem := map[string]interface{}{}
+		if toolUseID != "" {
+			// This is a tool result message - in Responses API, use function_call_output
+			inputItem["type"] = "function_call_output"
+			inputItem["call_id"] = toolUseID
+			inputItem["output"] = toolResultContent
+		} else {
+			inputItem["type"] = "message"
+			inputItem["role"] = msg.Role
+			if textContent != "" {
+				inputItem["content"] = []map[string]interface{}{{
+					"type": "input_text",
+					"text": textContent,
+				}}
 			} else {
-				if textContent != "" {
-					inputItem["content"] = textContent
-				}
-				if len(toolCalls) > 0 {
-					inputItem["tool_calls"] = toolCalls
-				}
+				inputItem["content"] = []interface{}{}
+			}
+			if len(toolCalls) > 0 {
+				inputItem["tool_calls"] = toolCalls
 			}
 		}
 
