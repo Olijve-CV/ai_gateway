@@ -38,7 +38,7 @@ func (h *Handler) OpenAIChatCompletions(c echo.Context) error {
 	middleware.LogTrace(c, "OpenAI", "Parsed request: model=%s, messages=%d, stream=%v", req.Model, len(req.Messages), req.Stream)
 
 	// Determine target provider from model name
-	provider := getTargetProvider(req.Model)
+	provider := h.getTargetProvider(c, req.Model)
 	if provider == "" {
 		middleware.LogTrace(c, "OpenAI", "Unsupported model: %s", req.Model)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
@@ -47,7 +47,7 @@ func (h *Handler) OpenAIChatCompletions(c echo.Context) error {
 	middleware.LogTrace(c, "OpenAI", "Target provider: %s", provider)
 
 	// Get credentials
-	baseURL, apiKey, protocol, err := h.getCredentials(c, provider)
+	baseURL, apiKey, protocol, err := h.getCredentials(c, provider, req.Model)
 	if err != nil {
 		middleware.LogTrace(c, "OpenAI", "Failed to get credentials: %v", err)
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
@@ -97,14 +97,14 @@ func (h *Handler) OpenAICodeResponses(c echo.Context) error {
 	middleware.LogTrace(c, "OpenAI-Responses", "Parsed request: model=%s", model)
 
 	// Determine target provider from model name
-	provider := getTargetProvider(model)
+	provider := h.getTargetProvider(c, model)
 	if provider == "" {
 		middleware.LogTrace(c, "OpenAI-Responses", "Unsupported model: %s", model)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
 	}
 
 	// Get credentials for provider
-	baseURL, apiKey, protocol, err := h.getCredentials(c, provider)
+	baseURL, apiKey, protocol, err := h.getCredentials(c, provider, model)
 	if err != nil {
 		middleware.LogTrace(c, "OpenAI-Responses", "Failed to get credentials: %v", err)
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
@@ -897,7 +897,7 @@ func (h *Handler) streamResponsesFromGemini(c echo.Context, adapter *adapters.Ge
 }
 
 // getTargetProvider determines the target provider from model name
-func getTargetProvider(model string) string {
+func (h *Handler) getTargetProvider(c echo.Context, model string) string {
 	if strings.HasPrefix(model, "gpt-") || strings.HasPrefix(model, "o1-") || strings.HasPrefix(model, "o3-") {
 		return "openai"
 	}
@@ -907,12 +907,119 @@ func getTargetProvider(model string) string {
 	if strings.HasPrefix(model, "gemini-") {
 		return "gemini"
 	}
+
+	// Check for custom providers
+	return h.findCustomProviderForModel(c, model)
+}
+
+// findCustomProviderForModel checks if model matches any custom provider's model codes
+func (h *Handler) findCustomProviderForModel(c echo.Context, model string) string {
+	middleware.LogTrace(c, "FindCustomProvider", "Searching custom provider for model: %s", model)
+
+	// Get user from context (either API key or JWT)
+	var configs []database.ProviderConfig
+	var err error
+
+	if apiKeyObj := middleware.GetAPIKey(c); apiKeyObj != nil {
+		// Use API key's provider configs
+		configs = apiKeyObj.ProviderConfigs
+		middleware.LogTrace(c, "FindCustomProvider", "Using API key configs, count=%d", len(configs))
+	} else if user := middleware.GetUser(c); user != nil {
+		// Get user's provider configs
+		configs, err = h.configService.GetConfigs(user.ID)
+		if err != nil {
+			middleware.LogTrace(c, "FindCustomProvider", "Failed to get user configs: %v", err)
+			return ""
+		}
+		middleware.LogTrace(c, "FindCustomProvider", "Using user configs, count=%d", len(configs))
+	} else {
+		middleware.LogTrace(c, "FindCustomProvider", "No authentication found")
+		return ""
+	}
+
+	// Check each custom provider for model match
+	for _, cfg := range configs {
+		if cfg.Provider == "custom" && cfg.IsActive {
+			modelCodes, err := h.configService.GetModelCodes(&cfg)
+			if err != nil {
+				middleware.LogTrace(c, "FindCustomProvider", "Failed to get model codes for config %d: %v", cfg.ID, err)
+				continue
+			}
+
+			for _, modelCode := range modelCodes {
+				if modelCode == model {
+					middleware.LogTrace(c, "FindCustomProvider", "Found match: model=%s -> custom provider=%s (ID=%d)", model, cfg.Name, cfg.ID)
+					return "custom"
+				}
+			}
+		}
+	}
+
+	middleware.LogTrace(c, "FindCustomProvider", "No custom provider found for model: %s", model)
 	return ""
 }
 
+// getCustomConfigForModel returns the custom provider config for a specific model
+func (h *Handler) getCustomConfigForModel(c echo.Context, model string) (*database.ProviderConfig, error) {
+	middleware.LogTrace(c, "GetCustomConfig", "Getting custom config for model: %s", model)
+
+	// Get user from context
+	var configs []database.ProviderConfig
+	var err error
+
+	if apiKeyObj := middleware.GetAPIKey(c); apiKeyObj != nil {
+		// Use API key's provider configs
+		configs = apiKeyObj.ProviderConfigs
+	} else if user := middleware.GetUser(c); user != nil {
+		// Get user's provider configs
+		configs, err = h.configService.GetConfigs(user.ID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("not authenticated")
+	}
+
+	// Find the custom provider config for this model
+	for _, cfg := range configs {
+		if cfg.Provider == "custom" && cfg.IsActive {
+			modelCodes, err := h.configService.GetModelCodes(&cfg)
+			if err != nil {
+				continue
+			}
+
+			for _, modelCode := range modelCodes {
+				if modelCode == model {
+					return &cfg, nil
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no custom provider configuration found for model: %s", model)
+}
+
 // getCredentials gets the API credentials for the target provider
-func (h *Handler) getCredentials(c echo.Context, provider string) (baseURL, apiKey, protocol string, err error) {
-	middleware.LogTrace(c, "GetCredentials", "Getting credentials for provider: %s", provider)
+func (h *Handler) getCredentials(c echo.Context, provider string, model string) (baseURL, apiKey, protocol string, err error) {
+	middleware.LogTrace(c, "GetCredentials", "Getting credentials for provider: %s, model: %s", provider, model)
+
+	// For custom providers, we need special handling
+	if provider == "custom" {
+		cfg, err := h.getCustomConfigForModel(c, model)
+		if err != nil {
+			middleware.LogTrace(c, "GetCredentials", "Failed to get custom config: %v", err)
+			return "", "", "", err
+		}
+
+		apiKey, err = h.configService.DecryptAPIKey(cfg)
+		if err != nil {
+			middleware.LogTrace(c, "GetCredentials", "Failed to decrypt API key: %v", err)
+			return "", "", "", err
+		}
+
+		middleware.LogTrace(c, "GetCredentials", "Successfully got custom credentials: BaseURL=%s, Protocol=%s", cfg.BaseURL, cfg.Protocol)
+		return cfg.BaseURL, apiKey, normalizeProtocol(cfg.Protocol), nil
+	}
 
 	// Check if using API key auth (has API key in context)
 	apiKeyObj := middleware.GetAPIKey(c)
@@ -1035,13 +1142,15 @@ func enforceOpenAIReasoningHigh(req map[string]interface{}) {
 		return
 	}
 
-	if reasoning, ok := req["reasoning"].(map[string]interface{}); ok {
-		reasoning["effort"] = "high"
-		req["reasoning"] = reasoning
-		return
-	}
+    req["toolchoice"] = "auto"
+    	req["parallelToolCalls"] = true
+    	req["store"] = false
+    	req["reasoning"] = map[string]interface{}{
+    		"effort":  "high",
+    		"summary": "auto",
+    	}
 
-	req["reasoning"] = map[string]interface{}{
-		"effort": "high",
-	}
+	return
+
+
 }
