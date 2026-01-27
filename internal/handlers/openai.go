@@ -937,9 +937,10 @@ func (h *Handler) findCustomProviderForModel(c echo.Context, model string) strin
 		return ""
 	}
 
-	// Check each custom provider for model match
+	// Check each custom provider for model match (non-standard providers)
 	for _, cfg := range configs {
-		if cfg.Provider == "custom" && cfg.IsActive {
+		isStandardProvider := cfg.Provider == "openai" || cfg.Provider == "anthropic" || cfg.Provider == "gemini"
+		if !isStandardProvider && cfg.IsActive {
 			modelCodes, err := h.configService.GetModelCodes(&cfg)
 			if err != nil {
 				middleware.LogTrace(c, "FindCustomProvider", "Failed to get model codes for config %d: %v", cfg.ID, err)
@@ -949,7 +950,7 @@ func (h *Handler) findCustomProviderForModel(c echo.Context, model string) strin
 			for _, modelCode := range modelCodes {
 				if modelCode == model {
 					middleware.LogTrace(c, "FindCustomProvider", "Found match: model=%s -> custom provider=%s (ID=%d)", model, cfg.Name, cfg.ID)
-					return "custom"
+					return cfg.Provider
 				}
 			}
 		}
@@ -980,9 +981,10 @@ func (h *Handler) getCustomConfigForModel(c echo.Context, model string) (*databa
 		return nil, fmt.Errorf("not authenticated")
 	}
 
-	// Find the custom provider config for this model
+	// Find the custom provider config for this model (non-standard providers)
 	for _, cfg := range configs {
-		if cfg.Provider == "custom" && cfg.IsActive {
+		isStandardProvider := cfg.Provider == "openai" || cfg.Provider == "anthropic" || cfg.Provider == "gemini"
+		if !isStandardProvider && cfg.IsActive {
 			modelCodes, err := h.configService.GetModelCodes(&cfg)
 			if err != nil {
 				continue
@@ -1003,8 +1005,9 @@ func (h *Handler) getCustomConfigForModel(c echo.Context, model string) (*databa
 func (h *Handler) getCredentials(c echo.Context, provider string, model string) (baseURL, apiKey, protocol string, err error) {
 	middleware.LogTrace(c, "GetCredentials", "Getting credentials for provider: %s, model: %s", provider, model)
 
-	// For custom providers, we need special handling
-	if provider == "custom" {
+	// For custom providers (non-standard), we need special handling
+	isStandardProvider := provider == "openai" || provider == "anthropic" || provider == "gemini"
+	if !isStandardProvider {
 		cfg, err := h.getCustomConfigForModel(c, model)
 		if err != nil {
 			middleware.LogTrace(c, "GetCredentials", "Failed to get custom config: %v", err)
@@ -1142,15 +1145,14 @@ func enforceOpenAIReasoningHigh(req map[string]interface{}) {
 		return
 	}
 
-    req["toolchoice"] = "auto"
-    	req["parallelToolCalls"] = true
-    	req["store"] = false
-    	req["reasoning"] = map[string]interface{}{
-    		"effort":  "high",
-    		"summary": "auto",
-    	}
+	req["tool_choice"] = "auto"
+	req["parallel_tool_calls"] = true
+	req["store"] = false
+	req["reasoning"] = map[string]interface{}{
+		"effort":  "high",
+		"summary": "auto",
+	}
 
 	return
-
 
 }

@@ -26,7 +26,7 @@ func NewConfigService(db *gorm.DB, cfg *config.Config) *ConfigService {
 
 // ProviderConfigCreate represents a request to create a provider config
 type ProviderConfigCreate struct {
-	Provider   string   `json:"provider" validate:"required"`
+	Provider   string   `json:"provider" validate:"required,min=1,max=50"`
 	Name       string   `json:"name" validate:"required,min=1,max=100"`
 	BaseURL    string   `json:"base_url"`
 	Protocol   string   `json:"protocol" validate:"oneof=anthropic openai_chat openai_code gemini"`
@@ -86,9 +86,9 @@ func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*d
 		return nil, err
 	}
 
-	// Set default base URL if not provided
+	// Set default base URL if not provided for known providers
 	baseURL := req.BaseURL
-	if baseURL == "" && req.Provider != "custom" {
+	if baseURL == "" {
 		switch req.Provider {
 		case "openai":
 			baseURL = s.cfg.OpenAIBaseURL
@@ -96,12 +96,10 @@ func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*d
 			baseURL = s.cfg.AnthropicBaseURL
 		case "gemini":
 			baseURL = s.cfg.GeminiBaseURL
+		default:
+			// For any custom provider name, base URL is required
+			return nil, errors.New("base_url is required for this provider")
 		}
-	}
-
-	// For custom provider, base URL is required
-	if baseURL == "" && req.Provider == "custom" {
-		return nil, errors.New("base_url is required for custom providers")
 	}
 
 	protocol := normalizeProtocol(strings.TrimSpace(req.Protocol))
@@ -301,12 +299,23 @@ func normalizeProtocol(protocol string) string {
 }
 
 func validateProvider(provider string) error {
-	switch provider {
-	case "openai", "anthropic", "gemini", "custom":
-		return nil
-	default:
-		return errors.New("unsupported provider")
+	// Allow any provider name, but validate it's not empty and reasonable length
+	if provider == "" {
+		return errors.New("provider name is required")
 	}
+	if len(provider) > 50 {
+		return errors.New("provider name too long (max 50 characters)")
+	}
+	// Basic validation - no spaces or special characters that could cause issues
+	for _, char := range provider {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_' || char == '.') {
+			return errors.New("provider name can only contain letters, numbers, hyphens, underscores, and dots")
+		}
+	}
+	return nil
 }
 
 func validateProtocol(protocol string) error {

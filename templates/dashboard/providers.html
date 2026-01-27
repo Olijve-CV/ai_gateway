@@ -65,12 +65,14 @@
                 <input type="hidden" id="edit-id">
                 <div class="form-group">
                     <label>提供商</label>
-                    <select id="config-provider" required>
+                    <select id="config-provider-type" required onchange="handleProviderTypeChange(this.value)">
                         <option value="openai">OpenAI</option>
                         <option value="anthropic">Anthropic</option>
                         <option value="gemini">Gemini</option>
                         <option value="custom">自定义服务商</option>
                     </select>
+                    <input type="text" id="config-provider-name" placeholder="输入服务商名称（如：MyAIService）" style="display: none; margin-top: 0.5rem;">
+                    <small class="form-hint" id="provider-name-hint" style="display: none;">服务商名称只能包含字母、数字、连字符、下划线和点</small>
                 </div>
                 <div class="form-group">
                     <label>Protocol</label>
@@ -156,78 +158,110 @@
     }
 
     function renderConfigs() {
-        const providers = ['openai', 'anthropic', 'gemini', 'custom'];
-
-        providers.forEach(provider => {
+        // Standard providers
+        const standardProviders = ['openai', 'anthropic', 'gemini'];
+        
+        standardProviders.forEach(provider => {
             const configs = allConfigs.filter(c => c.provider === provider);
             const container = document.querySelector(`#${provider}-section .configs-list`);
 
             if (configs.length === 0) {
                 container.innerHTML = '<p class="empty-text">暂无配置，点击添加</p>';
             } else {
-                container.innerHTML = configs.map(config => `
-                    <div class="config-item ${config.is_active ? '' : 'inactive'}">
-                        <div class="config-info">
-                            <div class="config-header">
-                                <span class="config-name">${config.name}</span>
-                                ${config.is_default ? '<span class="badge badge-primary">默认</span>' : ''}
-                                ${!config.is_active ? '<span class="badge badge-muted">已禁用</span>' : ''}
-                            </div>
-                            <div class="config-details">
-                                <span class="config-url">${config.base_url}</span>
-                                <span class="config-key">${config.key_hint}</span>
-                                <span class="config-protocol">${config.protocol || 'openai_chat'}</span>
-                                ${config.model_codes && config.model_codes.length > 0 ? `<span class="config-models">模型: ${config.model_codes.join(', ')}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="config-actions">
-                            <button class="btn btn-sm btn-outline" onclick="editConfig(${config.id})">编辑</button>
-                            ${!config.is_default ? `<button class="btn btn-sm btn-outline" onclick="setDefault(${config.id})">设为默认</button>` : ''}
-                            <button class="btn btn-sm btn-outline" onclick="toggleActive(${config.id})">${config.is_active ? '禁用' : '启用'}</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteConfig(${config.id})">删除</button>
-                        </div>
-                    </div>
-                `).join('');
+                container.innerHTML = configs.map(config => renderConfigItem(config)).join('');
             }
         });
+
+        // Custom providers
+        const customConfigs = allConfigs.filter(c => !standardProviders.includes(c.provider));
+        const customContainer = document.querySelector('#custom-section .configs-list');
+        
+        if (customConfigs.length === 0) {
+            customContainer.innerHTML = '<p class="empty-text">暂无配置，点击添加</p>';
+        } else {
+            customContainer.innerHTML = customConfigs.map(config => renderConfigItem(config)).join('');
+        }
     }
 
-    function showAddModal() {
+    function renderConfigItem(config) {
+        return `
+            <div class="config-item ${config.is_active ? '' : 'inactive'}">
+                <div class="config-info">
+                    <div class="config-header">
+                        <span class="config-name">${config.name}</span>
+                        ${config.is_default ? '<span class="badge badge-primary">默认</span>' : ''}
+                        ${!config.is_active ? '<span class="badge badge-muted">已禁用</span>' : ''}
+                    </div>
+                    <div class="config-details">
+                        <span class="config-url">${config.base_url}</span>
+                        <span class="config-key">${config.key_hint}</span>
+                        <span class="config-protocol">${config.protocol || 'openai_chat'}</span>
+                        ${config.model_codes && config.model_codes.length > 0 ? `<span class="config-models">模型: ${config.model_codes.join(', ')}</span>` : ''}
+                    </div>
+                </div>
+                <div class="config-actions">
+                    <button class="btn btn-sm btn-outline" onclick="editConfig(${config.id})">编辑</button>
+                    ${!config.is_default ? `<button class="btn btn-sm btn-outline" onclick="setDefault(${config.id})">设为默认</button>` : ''}
+                    <button class="btn btn-sm btn-outline" onclick="toggleActive(${config.id})">${config.is_active ? '禁用' : '启用'}</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteConfig(${config.id})">删除</button>
+                </div>
+            </div>
+        `;
+    }
+
+function showAddModal() {
         editingId = null;
         document.getElementById('modal-title').textContent = '添加配置';
         document.getElementById('config-form').reset();
         document.getElementById('config-key').required = true;
         document.getElementById('key-hint-text').style.display = 'none';
-        document.getElementById('config-provider').disabled = false;
+        document.getElementById('config-provider-type').disabled = false;
         document.getElementById('config-protocol').value = DEFAULT_PROTOCOL;
         document.getElementById('config-modal').style.display = 'flex';
 
-        // Handle provider change
-        document.getElementById('config-provider').addEventListener('change', function() {
-            handleProviderChange(this.value);
-        });
-        handleProviderChange('openai');
+        // Reset provider name input
+        document.getElementById('config-provider-name').value = '';
+        document.getElementById('config-provider-name').style.display = 'none';
+        document.getElementById('provider-name-hint').style.display = 'none';
     }
 
-    function handleProviderChange(provider) {
+    function handleProviderTypeChange(providerType) {
         const urlInput = document.getElementById('config-url');
         const modelCodesGroup = document.getElementById('model-codes-group');
         const protocolSelect = document.getElementById('config-protocol');
+        const providerNameInput = document.getElementById('config-provider-name');
+        const providerNameHint = document.getElementById('provider-name-hint');
 
-        if (provider === 'custom') {
+        if (providerType === 'custom') {
             urlInput.value = '';
             urlInput.placeholder = 'https://your-api-endpoint.com/v1';
             modelCodesGroup.style.display = 'block';
             protocolSelect.disabled = false;
+            providerNameInput.style.display = 'block';
+            providerNameHint.style.display = 'block';
+            providerNameInput.required = true;
         } else {
-            urlInput.value = DEFAULT_URLS[provider];
+            urlInput.value = DEFAULT_URLS[providerType];
             modelCodesGroup.style.display = 'none';
-            if (provider === 'openai') {
+            providerNameInput.style.display = 'none';
+            providerNameHint.style.display = 'none';
+            providerNameInput.required = false;
+            providerNameInput.value = '';
+            
+            if (providerType === 'openai') {
                 protocolSelect.value = 'openai_chat';
             } else {
-                protocolSelect.value = provider;
+                protocolSelect.value = providerType;
             }
         }
+    }
+
+    function getActualProvider() {
+        const providerType = document.getElementById('config-provider-type').value;
+        if (providerType === 'custom') {
+            return document.getElementById('config-provider-name').value.trim();
+        }
+        return providerType;
     }
 
     function editConfig(id) {
@@ -236,8 +270,21 @@
 
         editingId = id;
         document.getElementById('modal-title').textContent = '编辑配置';
-        document.getElementById('config-provider').value = config.provider;
-        document.getElementById('config-provider').disabled = true;
+        
+        const isStandardProvider = ['openai', 'anthropic', 'gemini'].includes(config.provider);
+        if (isStandardProvider) {
+            document.getElementById('config-provider-type').value = config.provider;
+            document.getElementById('config-provider-name').value = '';
+            document.getElementById('config-provider-name').style.display = 'none';
+            document.getElementById('provider-name-hint').style.display = 'none';
+        } else {
+            document.getElementById('config-provider-type').value = 'custom';
+            document.getElementById('config-provider-name').value = config.provider;
+            document.getElementById('config-provider-name').style.display = 'block';
+            document.getElementById('provider-name-hint').style.display = 'block';
+        }
+        
+        document.getElementById('config-provider-type').disabled = true;
         document.getElementById('config-protocol').value = config.protocol || DEFAULT_PROTOCOL;
         document.getElementById('config-name').value = config.name;
         document.getElementById('config-url').value = config.base_url;
@@ -245,11 +292,11 @@
         document.getElementById('config-key').required = false;
         document.getElementById('key-hint-text').style.display = 'block';
         
-        // Handle model codes
+        // Handle model codes for non-standard providers
         const modelCodesGroup = document.getElementById('model-codes-group');
         const modelCodesTextarea = document.getElementById('config-model-codes');
         
-        if (config.provider === 'custom') {
+        if (!isStandardProvider) {
             modelCodesGroup.style.display = 'block';
             if (config.model_codes && config.model_codes.length > 0) {
                 modelCodesTextarea.value = config.model_codes.join('\n');
@@ -272,8 +319,14 @@
         e.preventDefault();
         const token = localStorage.getItem('token');
 
+        const provider = getActualProvider();
+        if (!provider) {
+            showMessage('请输入服务商名称', 'error');
+            return;
+        }
+
         const data = {
-            provider: document.getElementById('config-provider').value,
+            provider: provider,
             name: document.getElementById('config-name').value,
             base_url: document.getElementById('config-url').value,
             protocol: document.getElementById('config-protocol').value,
@@ -285,8 +338,8 @@
         }
 
         // Handle model codes for custom providers
-        const provider = data.provider;
-        if (provider === 'custom') {
+        const providerType = document.getElementById('config-provider-type').value;
+        if (providerType === 'custom') {
             const modelCodesTextarea = document.getElementById('config-model-codes');
             if (modelCodesTextarea.value.trim()) {
                 data.model_codes = modelCodesTextarea.value.trim().split('\n').map(code => code.trim()).filter(code => code);
