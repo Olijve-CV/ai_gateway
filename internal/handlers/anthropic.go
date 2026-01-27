@@ -35,7 +35,7 @@ func (h *Handler) AnthropicMessages(c echo.Context) error {
 	middleware.LogTrace(c, "Anthropic", "Parsed request: model=%s, messages=%d, stream=%v", req.Model, len(req.Messages), req.Stream)
 
 	// Determine target provider from model name
-	provider := getTargetProvider(req.Model)
+	provider := h.getTargetProvider(c, req.Model)
 	if provider == "" {
 		middleware.LogTrace(c, "Anthropic", "Unsupported model: %s", req.Model)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
@@ -44,7 +44,7 @@ func (h *Handler) AnthropicMessages(c echo.Context) error {
 	middleware.LogTrace(c, "Anthropic", "Target provider: %s", provider)
 
 	// Get credentials
-	baseURL, apiKey, protocol, err := h.getCredentials(c, provider)
+	baseURL, apiKey, protocol, err := h.getCredentials(c, provider, req.Model)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic", "Failed to get credentials: %v", err)
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())

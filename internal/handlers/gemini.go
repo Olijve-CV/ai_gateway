@@ -31,13 +31,13 @@ func (h *Handler) GeminiGenerateContent(c echo.Context) error {
 	}
 
 	// Determine target provider from model name
-	provider := getTargetProvider(model)
+	provider := h.getTargetProvider(c, model)
 	if provider == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
 	}
 
 	// Get credentials
-	baseURL, apiKey, protocol, err := h.getCredentials(c, provider)
+	baseURL, apiKey, protocol, err := h.getCredentials(c, provider, model)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 	}

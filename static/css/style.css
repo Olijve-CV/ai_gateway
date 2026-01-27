@@ -401,6 +401,14 @@ body {
     font-family: monospace;
 }
 
+.config-models {
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--primary-color);
+}
+
 .config-actions {
     display: flex;
     gap: 0.5rem;

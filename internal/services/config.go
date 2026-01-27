@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"strings"
@@ -25,19 +26,21 @@ func NewConfigService(db *gorm.DB, cfg *config.Config) *ConfigService {
 
 // ProviderConfigCreate represents a request to create a provider config
 type ProviderConfigCreate struct {
-	Provider string `json:"provider" validate:"required,oneof=openai anthropic gemini"`
-	Name     string `json:"name" validate:"required,min=1,max=100"`
-	BaseURL  string `json:"base_url"`
-	Protocol string `json:"protocol" validate:"oneof=anthropic openai_chat openai_code gemini"`
-	APIKey   string `json:"api_key" validate:"required"`
+	Provider   string   `json:"provider" validate:"required"`
+	Name       string   `json:"name" validate:"required,min=1,max=100"`
+	BaseURL    string   `json:"base_url"`
+	Protocol   string   `json:"protocol" validate:"oneof=anthropic openai_chat openai_code gemini"`
+	APIKey     string   `json:"api_key" validate:"required"`
+	ModelCodes []string `json:"model_codes"`
 }
 
 // ProviderConfigUpdate represents a request to update a provider config
 type ProviderConfigUpdate struct {
-	Name     *string `json:"name"`
-	BaseURL  *string `json:"base_url"`
-	Protocol *string `json:"protocol"`
-	APIKey   *string `json:"api_key"`
+	Name       *string  `json:"name"`
+	BaseURL    *string  `json:"base_url"`
+	Protocol   *string  `json:"protocol"`
+	APIKey     *string  `json:"api_key"`
+	ModelCodes []string `json:"model_codes"`
 }
 
 // GetConfigs returns all provider configs for a user
@@ -66,6 +69,11 @@ func (s *ConfigService) GetConfigByID(userID, configID uint) (*database.Provider
 
 // CreateConfig creates a new provider config
 func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*database.ProviderConfig, error) {
+	// Validate provider
+	if err := validateProvider(req.Provider); err != nil {
+		return nil, err
+	}
+
 	// Get encryption key
 	encKey, err := s.cfg.GetEncryptionKeyBytes()
 	if err != nil {
@@ -80,7 +88,7 @@ func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*d
 
 	// Set default base URL if not provided
 	baseURL := req.BaseURL
-	if baseURL == "" {
+	if baseURL == "" && req.Provider != "custom" {
 		switch req.Provider {
 		case "openai":
 			baseURL = s.cfg.OpenAIBaseURL
@@ -91,9 +99,24 @@ func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*d
 		}
 	}
 
+	// For custom provider, base URL is required
+	if baseURL == "" && req.Provider == "custom" {
+		return nil, errors.New("base_url is required for custom providers")
+	}
+
 	protocol := normalizeProtocol(strings.TrimSpace(req.Protocol))
 	if err := validateProtocol(protocol); err != nil {
 		return nil, err
+	}
+
+	// Process model codes
+	modelCodesJSON := ""
+	if len(req.ModelCodes) > 0 {
+		modelCodesBytes, err := json.Marshal(req.ModelCodes)
+		if err != nil {
+			return nil, errors.New("failed to process model codes")
+		}
+		modelCodesJSON = string(modelCodesBytes)
 	}
 
 	// Check if this is the first config for this provider (make it default)
@@ -109,6 +132,7 @@ func (s *ConfigService) CreateConfig(userID uint, req *ProviderConfigCreate) (*d
 		Protocol:     protocol,
 		EncryptedKey: encryptedKey,
 		KeyHint:      utils.GetAPIKeyHint(req.APIKey),
+		ModelCodes:   modelCodesJSON,
 		IsDefault:    isDefault,
 		IsActive:     true,
 	}
@@ -156,6 +180,18 @@ func (s *ConfigService) UpdateConfig(userID, configID uint, req *ProviderConfigU
 		}
 		updates["encrypted_key"] = encryptedKey
 		updates["key_hint"] = utils.GetAPIKeyHint(*req.APIKey)
+	}
+
+	if req.ModelCodes != nil {
+		modelCodesJSON := ""
+		if len(req.ModelCodes) > 0 {
+			modelCodesBytes, err := json.Marshal(req.ModelCodes)
+			if err != nil {
+				return nil, errors.New("failed to process model codes")
+			}
+			modelCodesJSON = string(modelCodesBytes)
+		}
+		updates["model_codes"] = modelCodesJSON
 	}
 
 	if len(updates) > 0 {
@@ -243,11 +279,34 @@ func (s *ConfigService) DecryptAPIKey(cfg *database.ProviderConfig) (string, err
 	return result, nil
 }
 
+// GetModelCodes returns the model codes from a provider config
+func (s *ConfigService) GetModelCodes(cfg *database.ProviderConfig) ([]string, error) {
+	if cfg.ModelCodes == "" {
+		return []string{}, nil
+	}
+
+	var modelCodes []string
+	if err := json.Unmarshal([]byte(cfg.ModelCodes), &modelCodes); err != nil {
+		return nil, errors.New("failed to parse model codes")
+	}
+
+	return modelCodes, nil
+}
+
 func normalizeProtocol(protocol string) string {
 	if protocol == "" {
 		return "openai_chat"
 	}
 	return protocol
+}
+
+func validateProvider(provider string) error {
+	switch provider {
+	case "openai", "anthropic", "gemini", "custom":
+		return nil
+	default:
+		return errors.New("unsupported provider")
+	}
 }
 
 func validateProtocol(protocol string) error {

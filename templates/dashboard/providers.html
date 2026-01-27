@@ -45,6 +45,11 @@
                     <h3>Gemini</h3>
                     <div class="configs-list"></div>
                 </div>
+
+                <div class="provider-section" id="custom-section">
+                    <h3>自定义服务商</h3>
+                    <div class="configs-list"></div>
+                </div>
             </div>
         </div>
     </main>
@@ -64,6 +69,7 @@
                         <option value="openai">OpenAI</option>
                         <option value="anthropic">Anthropic</option>
                         <option value="gemini">Gemini</option>
+                        <option value="custom">自定义服务商</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -88,6 +94,11 @@
                     <label>API Key</label>
                     <input type="password" id="config-key" placeholder="sk-...">
                     <small class="form-hint" id="key-hint-text">编辑时留空则保持原 Key 不变</small>
+                </div>
+                <div class="form-group" id="model-codes-group" style="display: none;">
+                    <label>模型代码</label>
+                    <textarea id="config-model-codes" rows="3" placeholder="每行一个模型代码，例如：&#10;custom-model-1&#10;custom-model-2&#10;custom-model-3"></textarea>
+                    <small class="form-hint">每行一个模型代码，调用时匹配第一个配置的模型</small>
                 </div>
                 <div class="button-group">
                     <button type="button" class="btn btn-outline" onclick="hideModal()">取消</button>
@@ -145,7 +156,7 @@
     }
 
     function renderConfigs() {
-        const providers = ['openai', 'anthropic', 'gemini'];
+        const providers = ['openai', 'anthropic', 'gemini', 'custom'];
 
         providers.forEach(provider => {
             const configs = allConfigs.filter(c => c.provider === provider);
@@ -166,6 +177,7 @@
                                 <span class="config-url">${config.base_url}</span>
                                 <span class="config-key">${config.key_hint}</span>
                                 <span class="config-protocol">${config.protocol || 'openai_chat'}</span>
+                                ${config.model_codes && config.model_codes.length > 0 ? `<span class="config-models">模型: ${config.model_codes.join(', ')}</span>` : ''}
                             </div>
                         </div>
                         <div class="config-actions">
@@ -190,11 +202,32 @@
         document.getElementById('config-protocol').value = DEFAULT_PROTOCOL;
         document.getElementById('config-modal').style.display = 'flex';
 
-        // Set default URL based on provider
+        // Handle provider change
         document.getElementById('config-provider').addEventListener('change', function() {
-            document.getElementById('config-url').value = DEFAULT_URLS[this.value];
+            handleProviderChange(this.value);
         });
-        document.getElementById('config-url').value = DEFAULT_URLS['openai'];
+        handleProviderChange('openai');
+    }
+
+    function handleProviderChange(provider) {
+        const urlInput = document.getElementById('config-url');
+        const modelCodesGroup = document.getElementById('model-codes-group');
+        const protocolSelect = document.getElementById('config-protocol');
+
+        if (provider === 'custom') {
+            urlInput.value = '';
+            urlInput.placeholder = 'https://your-api-endpoint.com/v1';
+            modelCodesGroup.style.display = 'block';
+            protocolSelect.disabled = false;
+        } else {
+            urlInput.value = DEFAULT_URLS[provider];
+            modelCodesGroup.style.display = 'none';
+            if (provider === 'openai') {
+                protocolSelect.value = 'openai_chat';
+            } else {
+                protocolSelect.value = provider;
+            }
+        }
     }
 
     function editConfig(id) {
@@ -211,6 +244,22 @@
         document.getElementById('config-key').value = '';
         document.getElementById('config-key').required = false;
         document.getElementById('key-hint-text').style.display = 'block';
+        
+        // Handle model codes
+        const modelCodesGroup = document.getElementById('model-codes-group');
+        const modelCodesTextarea = document.getElementById('config-model-codes');
+        
+        if (config.provider === 'custom') {
+            modelCodesGroup.style.display = 'block';
+            if (config.model_codes && config.model_codes.length > 0) {
+                modelCodesTextarea.value = config.model_codes.join('\n');
+            } else {
+                modelCodesTextarea.value = '';
+            }
+        } else {
+            modelCodesGroup.style.display = 'none';
+        }
+        
         document.getElementById('config-modal').style.display = 'flex';
     }
 
@@ -233,6 +282,18 @@
         const apiKey = document.getElementById('config-key').value;
         if (apiKey) {
             data.api_key = apiKey;
+        }
+
+        // Handle model codes for custom providers
+        const provider = data.provider;
+        if (provider === 'custom') {
+            const modelCodesTextarea = document.getElementById('config-model-codes');
+            if (modelCodesTextarea.value.trim()) {
+                data.model_codes = modelCodesTextarea.value.trim().split('\n').map(code => code.trim()).filter(code => code);
+            } else {
+                showMessage('自定义服务商必须提供至少一个模型代码', 'error');
+                return;
+            }
         }
 
         try {

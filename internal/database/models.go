@@ -22,12 +22,13 @@ type User struct {
 type ProviderConfig struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	UserID       uint      `gorm:"index;not null" json:"user_id"`
-	Provider     string    `gorm:"size:20;index;not null" json:"provider"` // openai, anthropic, gemini
+	Provider     string    `gorm:"size:20;index;not null" json:"provider"` // openai, anthropic, gemini, custom
 	Protocol     string    `gorm:"size:20;default:openai_chat" json:"protocol"`
 	Name         string    `gorm:"size:100;not null" json:"name"`
 	BaseURL      string    `gorm:"size:255" json:"base_url"`
 	EncryptedKey string    `gorm:"size:500;not null" json:"-"`
 	KeyHint      string    `gorm:"size:20" json:"key_hint"`
+	ModelCodes   string    `gorm:"type:text" json:"model_codes"` // JSON array of model codes, comma-separated
 	IsDefault    bool      `gorm:"default:false" json:"is_default"`
 	IsActive     bool      `gorm:"default:true" json:"is_active"`
 	CreatedAt    time.Time `json:"created_at"`
