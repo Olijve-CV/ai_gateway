@@ -50,8 +50,8 @@ func JWTAuth(cfg *config.Config) echo.MiddlewareFunc {
 
 			token := parts[1]
 
-			// Skip if it's an API key (starts with agw_)
-			if strings.HasPrefix(token, "agw_") {
+			// Skip if it's an API key (starts with sk-)
+			if strings.HasPrefix(token, "sk-") {
 				return echo.NewHTTPError(http.StatusUnauthorized, "API key not allowed for this endpoint")
 			}
 
@@ -109,9 +109,9 @@ func GatewayAuth(db *gorm.DB, cfg *config.Config) echo.MiddlewareFunc {
 
 			// Try to get API key from headers
 			apiKeyStr := extractAPIKey(c)
-			LogTrace(c, "GatewayAuth", "Extracted API key: %v (has agw_ prefix: %v)", apiKeyStr != "", strings.HasPrefix(apiKeyStr, "agw_"))
+			LogTrace(c, "GatewayAuth", "Extracted API key: %v (has sk- prefix: %v)", apiKeyStr != "", strings.HasPrefix(apiKeyStr, "sk-"))
 
-			if apiKeyStr != "" && strings.HasPrefix(apiKeyStr, "agw_") {
+			if apiKeyStr != "" && strings.HasPrefix(apiKeyStr, "sk-") {
 				// API Key authentication
 				LogTrace(c, "GatewayAuth", "Authenticating with API key")
 				return authenticateWithAPIKey(c, db, cfg, apiKeyStr, next)
@@ -123,7 +123,7 @@ func GatewayAuth(db *gorm.DB, cfg *config.Config) echo.MiddlewareFunc {
 				parts := strings.SplitN(authHeader, " ", 2)
 				if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
 					token := parts[1]
-					if !strings.HasPrefix(token, "agw_") {
+					if !strings.HasPrefix(token, "sk-") {
 						LogTrace(c, "GatewayAuth", "Authenticating with JWT token")
 						return authenticateWithJWT(c, db, cfg, token, next)
 					}

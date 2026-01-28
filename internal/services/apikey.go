@@ -2,8 +2,8 @@ package services
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	"errors"
+	"fmt"
 	"time"
 
 	"ai_gateway/internal/database"
@@ -47,30 +47,30 @@ type APIKeyUpdate struct {
 
 // APIKeyUsageStats represents usage statistics for an API key
 type APIKeyUsageStats struct {
-	DailyRequestsUsed    int        `json:"daily_requests_used"`
-	MonthlyRequestsUsed  int        `json:"monthly_requests_used"`
-	DailyTokensUsed      int        `json:"daily_tokens_used"`
-	MonthlyTokensUsed    int        `json:"monthly_tokens_used"`
-	DailyRequestLimit    *int       `json:"daily_request_limit"`
-	MonthlyRequestLimit  *int       `json:"monthly_request_limit"`
-	DailyTokenLimit      *int       `json:"daily_token_limit"`
-	MonthlyTokenLimit    *int       `json:"monthly_token_limit"`
-	DailyResetAt         time.Time  `json:"daily_reset_at"`
-	MonthlyResetAt       time.Time  `json:"monthly_reset_at"`
-	RecentRecords        []database.UsageRecord `json:"recent_records"`
+	DailyRequestsUsed   int                    `json:"daily_requests_used"`
+	MonthlyRequestsUsed int                    `json:"monthly_requests_used"`
+	DailyTokensUsed     int                    `json:"daily_tokens_used"`
+	MonthlyTokensUsed   int                    `json:"monthly_tokens_used"`
+	DailyRequestLimit   *int                   `json:"daily_request_limit"`
+	MonthlyRequestLimit *int                   `json:"monthly_request_limit"`
+	DailyTokenLimit     *int                   `json:"daily_token_limit"`
+	MonthlyTokenLimit   *int                   `json:"monthly_token_limit"`
+	DailyResetAt        time.Time              `json:"daily_reset_at"`
+	MonthlyResetAt      time.Time              `json:"monthly_reset_at"`
+	RecentRecords       []database.UsageRecord `json:"recent_records"`
 }
 
 // GenerateAPIKey generates a new API key
 func (s *APIKeyService) GenerateAPIKey() (fullKey, keyHash, keyPrefix string, err error) {
-	// Generate 32 random bytes
-	bytes := make([]byte, 32)
+	// Generate 16 random bytes to get 32 hex characters
+	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", "", "", err
 	}
 
-	// Create the full key with agw_ prefix
-	randomPart := base64.URLEncoding.EncodeToString(bytes)[:32]
-	fullKey = "agw_" + randomPart
+	// Create the full key with sk- prefix using hex encoding
+	randomPart := fmt.Sprintf("%x", bytes)
+	fullKey = "sk-" + randomPart
 
 	// Create hash for storage
 	keyHash = utils.HashAPIKey(fullKey)
