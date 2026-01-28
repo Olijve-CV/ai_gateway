@@ -42,7 +42,7 @@ func TestAnthropicToOpenAIRequest_SystemToolsAndMessages(t *testing.T) {
 				Content: []interface{}{
 					map[string]interface{}{
 						"type":        "tool_result",
-						"tool_use_id": "call1",
+						"id":          "call1",
 						"content":     "42",
 					},
 				},
@@ -198,7 +198,7 @@ func TestOpenAIToAnthropicRequest_ToolUseAndResult(t *testing.T) {
 	if !ok || len(toolBlocks) != 1 {
 		t.Fatalf("tool response blocks mismatch: %#v", toolMsg.Content)
 	}
-	if toolBlocks[0].Type != "tool_result" || toolBlocks[0].ToolUseID != "call1" || toolBlocks[0].Content != `{"result":"ok"}` {
+	if toolBlocks[0].Type != "tool_result" || toolBlocks[0].ID != "call1" || toolBlocks[0].Content != `{"result":"ok"}` {
 		t.Fatalf("tool response block mismatch: %#v", toolBlocks[0])
 	}
 }
@@ -312,7 +312,8 @@ func TestOpenAIStreamToAnthropicStream_FirstChunk(t *testing.T) {
 		},
 	}
 
-	events, err := OpenAIStreamToAnthropicStream(data, true)
+	state := NewOpenAIToAnthropicStreamState()
+	events, err := OpenAIStreamToAnthropicStream(data, state)
 	if err != nil {
 		t.Fatalf("OpenAIStreamToAnthropicStream error: %v", err)
 	}

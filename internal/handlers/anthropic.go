@@ -280,7 +280,7 @@ func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *ad
 	c.Response().WriteHeader(statusCode)
 
 	reader := stream.GetReader()
-	isFirst := true
+	state := converters.NewOpenAIToAnthropicStreamState()
 	start := time.Now()
 	lastProgressLog := start
 	var lineCount int
@@ -395,7 +395,7 @@ func (h *Handler) streamAnthropicFromOpenAIChat(c echo.Context, adapter *adapter
 				continue
 			}
 
-			events, err := converters.OpenAIStreamToAnthropicStream(eventData, isFirst)
+			events, err := converters.OpenAIStreamToAnthropicStream(eventData, state)
 			if err != nil {
 				continue
 			}
@@ -407,7 +407,6 @@ func (h *Handler) streamAnthropicFromOpenAIChat(c echo.Context, adapter *adapter
 				c.Response().Flush()
 			}
 
-			isFirst = false
 		}
 	}
 

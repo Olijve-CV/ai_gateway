@@ -2,12 +2,19 @@ package converters
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"ai_gateway/internal/models"
 )
 
 // AnthropicToOpenAIResponsesRequest converts an Anthropic request to OpenAI Responses API format
+// Enhanced version based on reference implementation
 func AnthropicToOpenAIResponsesRequest(req *models.MessagesRequest) (map[string]interface{}, error) {
+	// Validate input request
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid anthropic request: %w", err)
+	}
+
 	result := map[string]interface{}{
 		"model": req.Model,
 	}
@@ -27,92 +34,86 @@ func AnthropicToOpenAIResponsesRequest(req *models.MessagesRequest) (map[string]
 	}
 
 	// Convert system to instructions
-	if req.System != nil {
-		switch v := req.System.(type) {
-		case string:
-			result["instructions"] = v
-		case []interface{}:
-			var instructions string
-			for _, block := range v {
-				if blockMap, ok := block.(map[string]interface{}); ok {
-					if blockMap["type"] == "text" {
-						if text, ok := blockMap["text"].(string); ok {
-							instructions += text
-						}
-					}
-				}
-			}
-			if instructions != "" {
-				result["instructions"] = instructions
-			}
-		}
+	if instructions := extractSystemText(req.System); instructions != "" {
+		result["instructions"] = instructions
 	}
 
 	// Convert messages to input array
 	var input []map[string]interface{}
 	for _, msg := range req.Messages {
-		var textContent string
+		var contentParts []map[string]interface{}
 		var toolCalls []map[string]interface{}
-		var toolResultContent string
-		var toolUseID string
+		var toolOutputs []map[string]interface{}
 
-		// Handle content
 		switch content := msg.Content.(type) {
 		case string:
-			textContent = content
-		case []interface{}:
-			for _, block := range content {
-				if blockMap, ok := block.(map[string]interface{}); ok {
-					blockType := getString(blockMap, "type")
-					switch blockType {
-					case "text":
-						textContent += getString(blockMap, "text")
-					case "tool_use":
-						argsBytes, _ := json.Marshal(blockMap["input"])
-						toolCalls = append(toolCalls, map[string]interface{}{
-							"id":   getString(blockMap, "id"),
-							"type": "function",
-							"function": map[string]interface{}{
-								"name":      getString(blockMap, "name"),
-								"arguments": string(argsBytes),
-							},
+			if content != "" {
+				contentParts = append(contentParts, map[string]interface{}{
+					"type": "input_text",
+					"text": content,
+				})
+			}
+		default:
+			blocks := normalizeAnthropicBlocks(content)
+			for _, block := range blocks {
+				switch block.Type {
+				case "text":
+					if block.Text != "" {
+						contentParts = append(contentParts, map[string]interface{}{
+							"type": "input_text",
+							"text": block.Text,
 						})
-					case "tool_result":
-						toolUseID = getString(blockMap, "tool_use_id")
-						if c, ok := blockMap["content"].(string); ok {
-							toolResultContent = c
-						} else {
-							contentBytes, _ := json.Marshal(blockMap["content"])
-							toolResultContent = string(contentBytes)
+					}
+				case "image":
+					if block.Source != nil {
+						url := getString(block.Source, "data")
+						if url != "" {
+							contentParts = append(contentParts, map[string]interface{}{
+								"type": "input_image",
+								"image_url": map[string]interface{}{
+									"url": url,
+								},
+							})
 						}
 					}
+				case "tool_use":
+					argsBytes, _ := json.Marshal(block.Input)
+					toolCalls = append(toolCalls, map[string]interface{}{
+						"id":   block.ID,
+						"type": "function",
+						"function": map[string]interface{}{
+							"name":      block.Name,
+							"arguments": string(argsBytes),
+						},
+					})
+				case "tool_result":
+					toolOutputs = append(toolOutputs, map[string]interface{}{
+						"type":    "function_call_output",
+						"call_id": blockToolResultID(block),
+						"output":  stringifyContent(block.Content),
+					})
 				}
 			}
 		}
 
-		inputItem := map[string]interface{}{}
-		if toolUseID != "" {
-			// This is a tool result message - in Responses API, use function_call_output
-			inputItem["type"] = "function_call_output"
-			inputItem["call_id"] = toolUseID
-			inputItem["output"] = toolResultContent
-		} else {
-			inputItem["type"] = "message"
-			inputItem["role"] = msg.Role
-			if textContent != "" {
-				inputItem["content"] = []map[string]interface{}{{
-					"type": "input_text",
-					"text": textContent,
-				}}
-			} else {
+		if len(contentParts) > 0 || len(toolCalls) > 0 {
+			inputItem := map[string]interface{}{
+				"type":    "message",
+				"role":    msg.Role,
+				"content": contentParts,
+			}
+			if len(contentParts) == 0 {
 				inputItem["content"] = []interface{}{}
 			}
 			if len(toolCalls) > 0 {
 				inputItem["tool_calls"] = toolCalls
 			}
+			input = append(input, inputItem)
 		}
 
-		input = append(input, inputItem)
+		if len(toolOutputs) > 0 {
+			input = append(input, toolOutputs...)
+		}
 	}
 	result["input"] = input
 

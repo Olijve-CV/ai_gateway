@@ -10,6 +10,7 @@ type ChatCompletionRequest struct {
 	Messages         []ChatMessage          `json:"messages"`
 	Temperature      *float64               `json:"temperature,omitempty"`
 	TopP             *float64               `json:"top_p,omitempty"`
+	TopK             *int                   `json:"top_k,omitempty"`
 	N                *int                   `json:"n,omitempty"`
 	Stream           bool                   `json:"stream,omitempty"`
 	Stop             interface{}            `json:"stop,omitempty"` // string or []string

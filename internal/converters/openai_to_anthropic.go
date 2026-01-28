@@ -25,12 +25,17 @@ func OpenAIToAnthropicRequest(req *models.ChatCompletionRequest) (*models.Messag
 	if req.TopP != nil {
 		anthropicReq.TopP = req.TopP
 	}
+	if req.TopK != nil {
+		anthropicReq.TopK = req.TopK
+	}
 
 	// Convert stop sequences
 	if req.Stop != nil {
 		switch v := req.Stop.(type) {
 		case string:
 			anthropicReq.StopSequences = []string{v}
+		case []string:
+			anthropicReq.StopSequences = append(anthropicReq.StopSequences, v...)
 		case []interface{}:
 			for _, s := range v {
 				if str, ok := s.(string); ok {
@@ -42,11 +47,11 @@ func OpenAIToAnthropicRequest(req *models.ChatCompletionRequest) (*models.Messag
 
 	// Convert messages, extracting system message
 	var messages []models.AnthropicMessage
+	var systemText string
 	for _, msg := range req.Messages {
 		if msg.Role == "system" {
 			// Extract system message
-			content := getTextContent(msg.Content)
-			anthropicReq.System = content
+			systemText += getTextContent(msg.Content)
 			continue
 		}
 
@@ -59,44 +64,58 @@ func OpenAIToAnthropicRequest(req *models.ChatCompletionRequest) (*models.Messag
 			anthropicMsg.Role = "user"
 			anthropicMsg.Content = []models.ContentBlock{{
 				Type:      "tool_result",
-				ToolUseID: msg.ToolCallID,
+				ID:        msg.ToolCallID,
 				Content:   msg.Content,
 			}}
-		} else if msg.ToolCalls != nil && len(msg.ToolCalls) > 0 {
-			// Assistant message with tool calls
+		} else {
+			textContent, imageBlocks := extractOpenAIContentParts(msg.Content)
 			var blocks []models.ContentBlock
 
-			// Add text content if present
-			content := getTextContent(msg.Content)
-			if content != "" {
+			if textContent != "" {
 				blocks = append(blocks, models.ContentBlock{
 					Type: "text",
-					Text: content,
+					Text: textContent,
 				})
 			}
 
-			// Add tool use blocks
-			for _, tc := range msg.ToolCalls {
-				var input interface{}
-				if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
-					input = map[string]interface{}{}
-				}
-				blocks = append(blocks, models.ContentBlock{
-					Type:  "tool_use",
-					ID:    tc.ID,
-					Name:  tc.Function.Name,
-					Input: input,
-				})
+			if len(imageBlocks) > 0 {
+				blocks = append(blocks, imageBlocks...)
 			}
-			anthropicMsg.Content = blocks
-		} else {
-			// Regular message
-			anthropicMsg.Content = msg.Content
+
+			// Add tool use blocks if present
+			if len(msg.ToolCalls) > 0 {
+				for _, tc := range msg.ToolCalls {
+					var input interface{}
+					if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
+						input = map[string]interface{}{}
+					}
+					blocks = append(blocks, models.ContentBlock{
+						Type:  "tool_use",
+						ID:    tc.ID,
+						Name:  tc.Function.Name,
+						Input: input,
+					})
+				}
+			}
+
+			if len(blocks) > 0 {
+				if len(blocks) == 1 && blocks[0].Type == "text" && len(msg.ToolCalls) == 0 && len(imageBlocks) == 0 {
+					anthropicMsg.Content = blocks[0].Text
+				} else {
+					anthropicMsg.Content = blocks
+				}
+			} else {
+				anthropicMsg.Content = msg.Content
+			}
 		}
 
 		messages = append(messages, anthropicMsg)
 	}
 	anthropicReq.Messages = messages
+
+	if systemText != "" {
+		anthropicReq.System = systemText
+	}
 
 	// Convert tools
 	if len(req.Tools) > 0 {
@@ -109,6 +128,43 @@ func OpenAIToAnthropicRequest(req *models.ChatCompletionRequest) (*models.Messag
 			})
 		}
 		anthropicReq.Tools = tools
+	}
+
+	// Convert tool choice (OpenAI -> Anthropic)
+	if req.ToolChoice != nil {
+		switch choice := req.ToolChoice.(type) {
+		case string:
+			switch choice {
+			case "auto":
+				anthropicReq.ToolChoice = models.ToolChoiceAuto{Type: "auto"}
+			case "required":
+				anthropicReq.ToolChoice = models.ToolChoiceAny{Type: "any"}
+			}
+		case models.ToolChoiceObject:
+			anthropicReq.ToolChoice = models.ToolChoiceTool{
+				Type: "tool",
+				Name: choice.Function.Name,
+			}
+		case map[string]interface{}:
+			if choiceType, ok := choice["type"].(string); ok {
+				switch choiceType {
+				case "auto":
+					anthropicReq.ToolChoice = models.ToolChoiceAuto{Type: "auto"}
+				case "required":
+					anthropicReq.ToolChoice = models.ToolChoiceAny{Type: "any"}
+				case "function":
+					if fn, ok := choice["function"].(map[string]interface{}); ok {
+						name := getString(fn, "name")
+						if name != "" {
+							anthropicReq.ToolChoice = models.ToolChoiceTool{
+								Type: "tool",
+								Name: name,
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return anthropicReq, nil
@@ -128,11 +184,14 @@ func AnthropicToOpenAIResponse(resp map[string]interface{}, model string) (*mode
 	var message models.ChatMessage
 	message.Role = "assistant"
 
-	if contentArr, ok := content.([]interface{}); ok {
-		var textContent string
-		var toolCalls []models.ToolCall
+	var textContent string
+	var toolCalls []models.ToolCall
 
-		for _, block := range contentArr {
+	switch contentVal := content.(type) {
+	case string:
+		textContent = contentVal
+	case []interface{}:
+		for _, block := range contentVal {
 			if blockMap, ok := block.(map[string]interface{}); ok {
 				blockType := getString(blockMap, "type")
 				if blockType == "text" {
@@ -150,13 +209,13 @@ func AnthropicToOpenAIResponse(resp map[string]interface{}, model string) (*mode
 				}
 			}
 		}
+	}
 
-		if textContent != "" {
-			message.Content = textContent
-		}
-		if len(toolCalls) > 0 {
-			message.ToolCalls = toolCalls
-		}
+	if textContent != "" {
+		message.Content = textContent
+	}
+	if len(toolCalls) > 0 {
+		message.ToolCalls = toolCalls
 	}
 
 	// Convert stop reason
@@ -243,6 +302,37 @@ func AnthropicStreamToOpenAIStream(eventType string, data map[string]interface{}
 
 		return json.Marshal(chunk)
 
+	case "content_block_start":
+		contentBlock, ok := data["content_block"].(map[string]interface{})
+		if !ok {
+			return nil, nil
+		}
+		blockType := getString(contentBlock, "type")
+		if blockType != "tool_use" {
+			return nil, nil
+		}
+
+		chunk := models.ChatCompletionChunk{
+			ID:      id,
+			Object:  "chat.completion.chunk",
+			Created: time.Now().Unix(),
+			Model:   model,
+			Choices: []models.Choice{{
+				Index: 0,
+				Delta: &models.ChatMessage{
+					ToolCalls: []models.ToolCall{{
+						ID:   getString(contentBlock, "id"),
+						Type: "function",
+						Function: models.FunctionCall{
+							Name: getString(contentBlock, "name"),
+						},
+					}},
+				},
+			}},
+		}
+
+		return json.Marshal(chunk)
+
 	case "message_delta":
 		delta := data["delta"].(map[string]interface{})
 		stopReason := getString(delta, "stop_reason")
@@ -287,6 +377,15 @@ func getTextContent(content interface{}) string {
 	if str, ok := content.(string); ok {
 		return str
 	}
+	if parts, ok := content.([]models.ContentPart); ok {
+		var text string
+		for _, part := range parts {
+			if part.Type == "text" {
+				text += part.Text
+			}
+		}
+		return text
+	}
 	if parts, ok := content.([]interface{}); ok {
 		var text string
 		for _, part := range parts {
@@ -304,15 +403,28 @@ func getTextContent(content interface{}) string {
 }
 
 func getString(m map[string]interface{}, key string) string {
-	if v, ok := m[key].(string); ok {
+	switch v := m[key].(type) {
+	case string:
 		return v
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return ""
 	}
-	return ""
 }
 
 func getInt(m map[string]interface{}, key string) int {
-	if v, ok := m[key].(float64); ok {
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case int64:
 		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return int(i)
+		}
 	}
 	return 0
 }
