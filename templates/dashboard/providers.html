@@ -97,10 +97,14 @@
                     <input type="password" id="config-key" placeholder="sk-...">
                     <small class="form-hint" id="key-hint-text">编辑时留空则保持原 Key 不变</small>
                 </div>
-                <div class="form-group" id="model-codes-group" style="display: none;">
-                    <label>模型代码</label>
-                    <textarea id="config-model-codes" rows="3" placeholder="每行一个模型代码，例如：&#10;custom-model-1&#10;custom-model-2&#10;custom-model-3"></textarea>
-                    <small class="form-hint">每行一个模型代码，调用时匹配第一个配置的模型</small>
+                <div class="form-group" id="model-codes-group">
+                    <label>Model Codes</label>
+                    <div class="tag-input" id="model-codes-input">
+                        <div class="tag-list" id="model-codes-list"></div>
+                        <input type="text" id="config-model-code-input" class="tag-input-field" placeholder="Type a model code and press Enter">
+                    </div>
+                    <input type="hidden" id="config-model-codes">
+                    <small class="form-hint" id="model-codes-hint">Press Enter to add model codes.</small>
                 </div>
                 <div class="button-group">
                     <button type="button" class="btn btn-outline" onclick="hideModal()">取消</button>
@@ -121,6 +125,11 @@
 
     let allConfigs = [];
     let editingId = null;
+    let modelCodeValues = [];
+    const modelCodesList = document.getElementById('model-codes-list');
+    const modelCodeInput = document.getElementById('config-model-code-input');
+    const modelCodesHidden = document.getElementById('config-model-codes');
+    const modelCodesHint = document.getElementById('model-codes-hint');
 
     async function loadConfigs() {
         const token = localStorage.getItem('token');
@@ -155,6 +164,107 @@
         } catch (error) {
             console.error('Failed to load configs:', error);
         }
+    }
+
+    function normalizeModelCode(code) {
+        return code.trim();
+    }
+
+    function renderModelCodes() {
+        if (!modelCodesList) {
+            return;
+        }
+        modelCodesList.innerHTML = '';
+        modelCodeValues.forEach((code) => {
+            const tag = document.createElement('span');
+            tag.className = 'tag-item';
+
+            const text = document.createElement('span');
+            text.className = 'tag-text';
+            text.textContent = code;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'tag-remove';
+            removeBtn.dataset.code = code;
+            removeBtn.textContent = '×';
+
+            tag.appendChild(text);
+            tag.appendChild(removeBtn);
+            modelCodesList.appendChild(tag);
+        });
+
+        if (modelCodesHidden) {
+            modelCodesHidden.value = modelCodeValues.join('\n');
+        }
+    }
+
+    function addModelCodes(raw) {
+        if (!raw) {
+            return;
+        }
+        const candidates = raw.split(/\r?\n/);
+        let changed = false;
+        candidates.forEach((candidate) => {
+            const code = normalizeModelCode(candidate);
+            if (!code || modelCodeValues.includes(code)) {
+                return;
+            }
+            modelCodeValues.push(code);
+            changed = true;
+        });
+        if (changed) {
+            renderModelCodes();
+        }
+    }
+
+    function removeModelCode(code) {
+        const nextValues = modelCodeValues.filter((value) => value !== code);
+        if (nextValues.length !== modelCodeValues.length) {
+            modelCodeValues = nextValues;
+            renderModelCodes();
+        }
+    }
+
+    function setModelCodes(codes) {
+        modelCodeValues = [];
+        if (Array.isArray(codes)) {
+            codes.forEach((code) => {
+                const normalized = normalizeModelCode(code || '');
+                if (normalized && !modelCodeValues.includes(normalized)) {
+                    modelCodeValues.push(normalized);
+                }
+            });
+        }
+        renderModelCodes();
+    }
+
+    function updateModelCodesHint(isRequired) {
+        if (!modelCodesHint) {
+            return;
+        }
+        modelCodesHint.textContent = isRequired
+            ? 'Press Enter to add model codes (required).'
+            : 'Press Enter to add model codes (optional).';
+    }
+
+    if (modelCodeInput) {
+        modelCodeInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addModelCodes(modelCodeInput.value);
+                modelCodeInput.value = '';
+            }
+        });
+    }
+
+    if (modelCodesList) {
+        modelCodesList.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target instanceof HTMLElement && target.classList.contains('tag-remove')) {
+                removeModelCode(target.dataset.code || '');
+            }
+        });
     }
 
     function renderConfigs() {
@@ -223,6 +333,11 @@ function showAddModal() {
         document.getElementById('config-provider-name').value = '';
         document.getElementById('config-provider-name').style.display = 'none';
         document.getElementById('provider-name-hint').style.display = 'none';
+        setModelCodes([]);
+        if (modelCodeInput) {
+            modelCodeInput.value = '';
+        }
+        handleProviderTypeChange(document.getElementById('config-provider-type').value);
     }
 
     function handleProviderTypeChange(providerType) {
@@ -240,13 +355,15 @@ function showAddModal() {
             providerNameInput.style.display = 'block';
             providerNameHint.style.display = 'block';
             providerNameInput.required = true;
+            updateModelCodesHint(true);
         } else {
             urlInput.value = DEFAULT_URLS[providerType];
-            modelCodesGroup.style.display = 'none';
+            modelCodesGroup.style.display = 'block';
             providerNameInput.style.display = 'none';
             providerNameHint.style.display = 'none';
             providerNameInput.required = false;
             providerNameInput.value = '';
+            updateModelCodesHint(false);
             
             if (providerType === 'openai') {
                 protocolSelect.value = 'openai_chat';
@@ -277,11 +394,13 @@ function showAddModal() {
             document.getElementById('config-provider-name').value = '';
             document.getElementById('config-provider-name').style.display = 'none';
             document.getElementById('provider-name-hint').style.display = 'none';
+            document.getElementById('config-provider-name').required = false;
         } else {
             document.getElementById('config-provider-type').value = 'custom';
             document.getElementById('config-provider-name').value = config.provider;
             document.getElementById('config-provider-name').style.display = 'block';
             document.getElementById('provider-name-hint').style.display = 'block';
+            document.getElementById('config-provider-name').required = true;
         }
         
         document.getElementById('config-provider-type').disabled = true;
@@ -292,21 +411,15 @@ function showAddModal() {
         document.getElementById('config-key').required = false;
         document.getElementById('key-hint-text').style.display = 'block';
         
-        // Handle model codes for non-standard providers
+        // Handle model codes for configs
         const modelCodesGroup = document.getElementById('model-codes-group');
-        const modelCodesTextarea = document.getElementById('config-model-codes');
-        
-        if (!isStandardProvider) {
-            modelCodesGroup.style.display = 'block';
-            if (config.model_codes && config.model_codes.length > 0) {
-                modelCodesTextarea.value = config.model_codes.join('\n');
-            } else {
-                modelCodesTextarea.value = '';
-            }
-        } else {
-            modelCodesGroup.style.display = 'none';
+        modelCodesGroup.style.display = 'block';
+        setModelCodes((config.model_codes || []));
+        if (modelCodeInput) {
+            modelCodeInput.value = '';
         }
-        
+        updateModelCodesHint(!isStandardProvider);
+
         document.getElementById('config-modal').style.display = 'flex';
     }
 
@@ -337,17 +450,13 @@ function showAddModal() {
             data.api_key = apiKey;
         }
 
-        // Handle model codes for custom providers
+                // Handle model codes for providers
         const providerType = document.getElementById('config-provider-type').value;
-        if (providerType === 'custom') {
-            const modelCodesTextarea = document.getElementById('config-model-codes');
-            if (modelCodesTextarea.value.trim()) {
-                data.model_codes = modelCodesTextarea.value.trim().split('\n').map(code => code.trim()).filter(code => code);
-            } else {
-                showMessage('自定义服务商必须提供至少一个模型代码', 'error');
-                return;
-            }
+        if (providerType === 'custom' && modelCodeValues.length === 0) {
+            showMessage('自定义服务商必须提供至少一个模型代码', 'error');
+            return;
         }
+        data.model_codes = modelCodeValues.slice();
 
         try {
             let response;
