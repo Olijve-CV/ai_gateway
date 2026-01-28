@@ -13,6 +13,7 @@
 - `go test ./...` runs all unit tests.
 - `gofmt -w cmd internal` formats Go source files.
 - `go vet ./...` runs static analysis for common issues.
+- Legacy Python/uvicorn steps in `docs/getting-started.md` are outdated; use the Go commands above.
 
 ## Coding Style & Naming Conventions
 - Go 1.21, gofmt formatting (tabs for indentation).
