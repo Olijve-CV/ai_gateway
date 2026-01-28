@@ -35,7 +35,20 @@ func (h *Handler) AnthropicMessages(c echo.Context) error {
 	middleware.LogTrace(c, "Anthropic", "Parsed request: model=%s, messages=%d, stream=%v", req.Model, len(req.Messages), req.Stream)
 
 	// Determine target provider from model name
-	provider := h.getTargetProvider(c, req.Model)
+	provider := ""
+	resolved, err := h.resolveProviderForAPIKey(c, req.Model)
+	if err != nil {
+		middleware.LogTrace(c, "Anthropic", "Failed to resolve provider: %v", err)
+		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
+	}
+	if resolved != nil {
+		c.Set(middleware.ContextKeyProviderConfig, resolved.Config)
+		req.Model = resolved.Model
+		provider = resolved.Provider
+	}
+	if provider == "" {
+		provider = h.getTargetProvider(c, req.Model)
+	}
 	if provider == "" {
 		middleware.LogTrace(c, "Anthropic", "Unsupported model: %s", req.Model)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")

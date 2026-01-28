@@ -31,7 +31,19 @@ func (h *Handler) GeminiGenerateContent(c echo.Context) error {
 	}
 
 	// Determine target provider from model name
-	provider := h.getTargetProvider(c, model)
+	provider := ""
+	resolved, err := h.resolveProviderForAPIKey(c, model)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
+	}
+	if resolved != nil {
+		c.Set(middleware.ContextKeyProviderConfig, resolved.Config)
+		model = resolved.Model
+		provider = resolved.Provider
+	}
+	if provider == "" {
+		provider = h.getTargetProvider(c, model)
+	}
 	if provider == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
 	}

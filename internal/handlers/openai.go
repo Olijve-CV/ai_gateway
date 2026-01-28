@@ -38,7 +38,20 @@ func (h *Handler) OpenAIChatCompletions(c echo.Context) error {
 	middleware.LogTrace(c, "OpenAI", "Parsed request: model=%s, messages=%d, stream=%v", req.Model, len(req.Messages), req.Stream)
 
 	// Determine target provider from model name
-	provider := h.getTargetProvider(c, req.Model)
+	provider := ""
+	resolved, err := h.resolveProviderForAPIKey(c, req.Model)
+	if err != nil {
+		middleware.LogTrace(c, "OpenAI", "Failed to resolve provider: %v", err)
+		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
+	}
+	if resolved != nil {
+		c.Set(middleware.ContextKeyProviderConfig, resolved.Config)
+		req.Model = resolved.Model
+		provider = resolved.Provider
+	}
+	if provider == "" {
+		provider = h.getTargetProvider(c, req.Model)
+	}
 	if provider == "" {
 		middleware.LogTrace(c, "OpenAI", "Unsupported model: %s", req.Model)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
@@ -97,7 +110,21 @@ func (h *Handler) OpenAICodeResponses(c echo.Context) error {
 	middleware.LogTrace(c, "OpenAI-Responses", "Parsed request: model=%s", model)
 
 	// Determine target provider from model name
-	provider := h.getTargetProvider(c, model)
+	provider := ""
+	resolved, err := h.resolveProviderForAPIKey(c, model)
+	if err != nil {
+		middleware.LogTrace(c, "OpenAI-Responses", "Failed to resolve provider: %v", err)
+		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
+	}
+	if resolved != nil {
+		c.Set(middleware.ContextKeyProviderConfig, resolved.Config)
+		model = resolved.Model
+		reqBody["model"] = resolved.Model
+		provider = resolved.Provider
+	}
+	if provider == "" {
+		provider = h.getTargetProvider(c, model)
+	}
 	if provider == "" {
 		middleware.LogTrace(c, "OpenAI-Responses", "Unsupported model: %s", model)
 		return echo.NewHTTPError(http.StatusBadRequest, "unsupported model")
@@ -1004,6 +1031,19 @@ func (h *Handler) getCustomConfigForModel(c echo.Context, model string) (*databa
 // getCredentials gets the API credentials for the target provider
 func (h *Handler) getCredentials(c echo.Context, provider string, model string) (baseURL, apiKey, protocol string, err error) {
 	middleware.LogTrace(c, "GetCredentials", "Getting credentials for provider: %s, model: %s", provider, model)
+
+	if resolvedCfg := middleware.GetProviderConfig(c); resolvedCfg != nil {
+		if !resolvedCfg.IsActive {
+			return "", "", "", fmt.Errorf("provider config is inactive")
+		}
+		apiKey, err = h.configService.DecryptAPIKey(resolvedCfg)
+		if err != nil {
+			middleware.LogTrace(c, "GetCredentials", "Failed to decrypt API key: %v", err)
+			return "", "", "", err
+		}
+		middleware.LogTrace(c, "GetCredentials", "Using resolved provider config: ID=%d, Provider=%s, BaseURL=%s", resolvedCfg.ID, resolvedCfg.Provider, resolvedCfg.BaseURL)
+		return resolvedCfg.BaseURL, apiKey, normalizeProtocol(resolvedCfg.Protocol), nil
+	}
 
 	// For custom providers (non-standard), we need special handling
 	isStandardProvider := provider == "openai" || provider == "anthropic" || provider == "gemini"
