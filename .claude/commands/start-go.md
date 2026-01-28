@@ -8,7 +8,7 @@
 3. 服务在后台运行
 
 ```bash
-cd go && go run ./cmd/server/main.go
+go run ./cmd/server/main.go
 ```
 
 注意：如果端口 8080 已被占用，请先使用 `/stop-go` 停止服务。

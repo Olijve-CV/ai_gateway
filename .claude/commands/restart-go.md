@@ -15,5 +15,5 @@ for /f "tokens=5" %a in ('netstat -ano ^| findstr :8080 ^| findstr LISTENING') d
 
 2. 启动服务：
 ```bash
-cd go && go run ./cmd/server/main.go
+go run ./cmd/server/main.go
 ```
