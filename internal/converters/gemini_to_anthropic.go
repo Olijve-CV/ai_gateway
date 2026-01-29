@@ -66,9 +66,9 @@ func GeminiToAnthropicRequest(req *models.GenerateContentRequest, model string) 
 			}
 			if part.FunctionResponse != nil {
 				contentBlocks = append(contentBlocks, models.ContentBlock{
-					Type:      "tool_result",
-					ToolUseID: generateToolCallID(0), // Gemini doesn't have IDs
-					Content:   part.FunctionResponse.Response,
+					Type:    "tool_result",
+					ID:      generateToolCallID(0), // Gemini doesn't have IDs
+					Content: part.FunctionResponse.Response,
 				})
 			}
 			if part.InlineData != nil {

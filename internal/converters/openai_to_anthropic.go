@@ -221,16 +221,18 @@ func AnthropicToOpenAIResponse(resp map[string]interface{}, model string) (*mode
 	// Convert stop reason
 	var finishReason string
 	if stopReason, ok := resp["stop_reason"].(string); ok {
-		switch stopReason {
-		case "end_turn":
-			finishReason = "stop"
-		case "max_tokens":
-			finishReason = "length"
-		case "tool_use":
-			finishReason = "tool_calls"
-		default:
-			finishReason = stopReason
-		}
+	switch stopReason {
+	case "end_turn":
+		finishReason = "stop"
+	case "max_tokens":
+		finishReason = "length"
+	case "stop_sequence":
+		finishReason = "stop"
+	case "tool_use":
+		finishReason = "tool_calls"
+	default:
+		finishReason = stopReason
+	}
 	}
 
 	openaiResp.Choices = []models.Choice{{
@@ -338,16 +340,18 @@ func AnthropicStreamToOpenAIStream(eventType string, data map[string]interface{}
 		stopReason := getString(delta, "stop_reason")
 
 		var finishReason string
-		switch stopReason {
-		case "end_turn":
-			finishReason = "stop"
-		case "max_tokens":
-			finishReason = "length"
-		case "tool_use":
-			finishReason = "tool_calls"
-		default:
-			finishReason = stopReason
-		}
+	switch stopReason {
+	case "end_turn":
+		finishReason = "stop"
+	case "max_tokens":
+		finishReason = "length"
+	case "stop_sequence":
+		finishReason = "stop"
+	case "tool_use":
+		finishReason = "tool_calls"
+	default:
+		finishReason = stopReason
+	}
 
 		chunk := models.ChatCompletionChunk{
 			ID:      id,

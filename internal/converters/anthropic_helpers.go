@@ -43,6 +43,14 @@ func extractSystemText(system interface{}) string {
 			}
 		}
 		return text
+	case []map[string]interface{}:
+		var text string
+		for _, block := range v {
+			if getString(block, "type") == "text" {
+				text += getString(block, "text")
+			}
+		}
+		return text
 	case []interface{}:
 		var text string
 		for _, item := range v {
@@ -215,6 +223,29 @@ func extractOpenAIContentParts(content interface{}) (string, []models.ContentBlo
 			if !ok {
 				continue
 			}
+			switch getString(partMap, "type") {
+			case "text":
+				text += getString(partMap, "text")
+			case "image_url":
+				if imageURL, ok := partMap["image_url"].(map[string]interface{}); ok {
+					url := getString(imageURL, "url")
+					if url != "" {
+						blocks = append(blocks, models.ContentBlock{
+							Type: "image",
+							Source: &models.ImageSource{
+								Type: "base64",
+								Data: url,
+							},
+						})
+					}
+				}
+			}
+		}
+		return text, blocks
+	case []map[string]interface{}:
+		var text string
+		var blocks []models.ContentBlock
+		for _, partMap := range v {
 			switch getString(partMap, "type") {
 			case "text":
 				text += getString(partMap, "text")

@@ -105,7 +105,7 @@ type ContentBlock struct {
 	ID        string       `json:"id,omitempty"`          // For tool_use blocks
 	Name      string       `json:"name,omitempty"`        // For tool_use blocks
 	Input     interface{}  `json:"input,omitempty"`       // For tool_use blocks (object)
-	ToolUseID string       `json:"tool_use_id,omitempty"` // For tool_result blocks
+	ToolUseID string       `json:"tool_use_id,omitempty"` // Legacy tool_result id (prefers id)
 	Content   interface{}  `json:"content,omitempty"`     // For tool_result blocks
 	IsError   bool         `json:"is_error,omitempty"`    // For tool_result blocks
 }

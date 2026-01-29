@@ -134,8 +134,11 @@ func AnthropicToOpenAIRequest(req *models.MessagesRequest) (*models.ChatCompleti
 			}
 		}
 
-		contentStr, _ := openaiMsg.Content.(string)
-		if contentStr == "" && len(openaiMsg.ToolCalls) == 0 {
+		hasContent := openaiMsg.Content != nil
+		if contentStr, ok := openaiMsg.Content.(string); ok {
+			hasContent = contentStr != ""
+		}
+		if !hasContent && len(openaiMsg.ToolCalls) == 0 {
 			continue
 		}
 
@@ -284,10 +287,14 @@ func OpenAIToAnthropicResponse(resp map[string]interface{}, model string) (*mode
 	if toolCalls, ok := message["tool_calls"].([]interface{}); ok {
 		for _, tc := range toolCalls {
 			tcMap := tc.(map[string]interface{})
-			function := tcMap["function"].(map[string]interface{})
+			function, _ := tcMap["function"].(map[string]interface{})
 			var input interface{}
-			if args, ok := function["arguments"].(string); ok {
-				json.Unmarshal([]byte(args), &input)
+			if function != nil {
+				if args, ok := function["arguments"].(string); ok {
+					json.Unmarshal([]byte(args), &input)
+				}
+			} else {
+				input = map[string]interface{}{}
 			}
 			contentBlocks = append(contentBlocks, models.ContentBlock{
 				Type:  "tool_use",
