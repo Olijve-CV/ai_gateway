@@ -28,6 +28,9 @@ type Config struct {
 
 	// JWT expiration in minutes
 	JWTExpiration int `envconfig:"JWT_EXPIRATION" default:"60"`
+
+	// HTTP timeout configuration
+	HTTPTimeout int `envconfig:"HTTP_TIMEOUT_SECONDS" default:"600"` // 10 minutes
 }
 
 // Load loads the configuration from environment variables

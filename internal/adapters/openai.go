@@ -32,6 +32,17 @@ func NewOpenAIAdapter(apiKey, baseURL string) *OpenAIAdapter {
 	}
 }
 
+// NewOpenAIAdapterWithConfig creates a new OpenAI adapter with configurable timeout
+func NewOpenAIAdapterWithConfig(apiKey, baseURL string, timeout time.Duration) *OpenAIAdapter {
+	return &OpenAIAdapter{
+		apiKey:  apiKey,
+		baseURL: baseURL,
+		client: &http.Client{
+			Timeout: timeout,
+		},
+	}
+}
+
 // ChatCompletions sends a chat completion request
 func (a *OpenAIAdapter) ChatCompletions(ctx context.Context, request interface{}) (map[string]interface{}, int, error) {
 	url := fmt.Sprintf("%s/chat/completions", a.baseURL)
@@ -176,7 +187,7 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, request interface{}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.apiKey))
 	req.Header.Set("Accept", "text/event-stream")
 
-    log.Printf("[OpenAIAdapter] ResponsesStream HeaderApiKey: %s", a.apiKey)
+	log.Printf("[OpenAIAdapter] ResponsesStream HeaderApiKey: %s", a.apiKey)
 	resp, err := a.client.Do(req)
 	if err != nil {
 		log.Printf("[OpenAIAdapter] ResponsesStream error after %s: %v", time.Since(start), err)

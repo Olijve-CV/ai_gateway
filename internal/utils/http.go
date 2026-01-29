@@ -8,11 +8,21 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"ai_gateway/internal/config"
 )
 
 const (
 	DefaultTimeout = 300 * time.Second
 )
+
+// GetTimeout returns the configured HTTP timeout
+func GetTimeout(cfg *config.Config) time.Duration {
+	if cfg == nil || cfg.HTTPTimeout <= 0 {
+		return DefaultTimeout
+	}
+	return time.Duration(cfg.HTTPTimeout) * time.Second
+}
 
 // HTTPClient is a wrapper around http.Client with common functionality
 type HTTPClient struct {
@@ -24,6 +34,15 @@ func NewHTTPClient() *HTTPClient {
 	return &HTTPClient{
 		client: &http.Client{
 			Timeout: DefaultTimeout,
+		},
+	}
+}
+
+// NewHTTPClientWithConfig creates a new HTTP client with configured timeout
+func NewHTTPClientWithConfig(cfg *config.Config) *HTTPClient {
+	return &HTTPClient{
+		client: &http.Client{
+			Timeout: GetTimeout(cfg),
 		},
 	}
 }

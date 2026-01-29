@@ -114,6 +114,7 @@ func (h *Handler) handleAnthropicToAnthropic(c echo.Context, req *models.Message
 func (h *Handler) handleAnthropicToOpenAIChat(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
 	middleware.LogTrace(c, "Anthropic->OpenAIChat", "Converting request to Chat Completions format")
 	openaiReq, err := converters.AnthropicToOpenAIRequest(req)
+	middleware.LogTrace(c, "Anthropic->OpenAIChat-Convertion", "Converted request: %v", openaiReq)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -280,7 +281,7 @@ func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *ad
 	c.Response().WriteHeader(statusCode)
 
 	reader := stream.GetReader()
-	state := converters.NewOpenAIToAnthropicStreamState()
+	isFirst := true
 	start := time.Now()
 	lastProgressLog := start
 	var lineCount int
@@ -366,7 +367,7 @@ func (h *Handler) streamAnthropicFromOpenAIChat(c echo.Context, adapter *adapter
 	c.Response().WriteHeader(statusCode)
 
 	reader := stream.GetReader()
-	isFirst := true
+	state := converters.NewOpenAIToAnthropicStreamState()
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -406,7 +407,6 @@ func (h *Handler) streamAnthropicFromOpenAIChat(c echo.Context, adapter *adapter
 				c.Response().Write([]byte("\n\n"))
 				c.Response().Flush()
 			}
-
 		}
 	}
 
