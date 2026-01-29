@@ -261,37 +261,8 @@ func (h *Handler) streamAnthropic(c echo.Context, adapter *adapters.AnthropicAda
 			return err
 		}
 
-		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Read line: %s", line)
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "event:") {
-			continue
-		}
-
-		if strings.HasPrefix(line, "data:") {
-			data := strings.TrimPrefix(line, "data:")
-			data = strings.TrimSpace(data)
-
-			if data == "[DONE]" {
-				break
-			}
-
-			var eventData map[string]interface{}
-			if err := json.Unmarshal([]byte(data), &eventData); err != nil {
-				continue
-			}
-
-			events, err := converters.OpenAIStreamToAnthropicStream(eventData, state)
-			if err != nil {
-				continue
-			}
-
-			for _, event := range events {
-				c.Response().Write([]byte("event: message\ndata: "))
-				c.Response().Write(event)
-				c.Response().Write([]byte("\n\n"))
-				c.Response().Flush()
-			}
-		}
+		c.Response().Write([]byte(line))
+		c.Response().Flush()
 	}
 
 	return nil
@@ -353,6 +324,133 @@ func (h *Handler) streamAnthropicFromGemini(c echo.Context, adapter *adapters.Ge
 			}
 
 			isFirst = false
+		}
+	}
+
+	return nil
+}
+
+// streamAnthropicFromOpenAIResponses streams and converts OpenAI Responses API response to Anthropic format
+func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *adapters.OpenAIAdapter, req map[string]interface{}, model string) error {
+	req["stream"] = true
+	stream, statusCode, err := adapter.ResponsesStream(c.Request().Context(), req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+	}
+	defer stream.Close()
+
+	middleware.LogTrace(c, "Anthropic->OpenAI", "Starting response stream: statusCode=%d, model=%s", statusCode, model)
+
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().WriteHeader(statusCode)
+
+	reader := stream.GetReader()
+	isFirst := true
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "event:") {
+			continue
+		}
+
+		if strings.HasPrefix(trimmedLine, "data:") {
+			data := strings.TrimPrefix(trimmedLine, "data:")
+			data = strings.TrimSpace(data)
+
+			if data == "[DONE]" {
+				break
+			}
+
+			var eventData map[string]interface{}
+			if err := json.Unmarshal([]byte(data), &eventData); err != nil {
+				continue
+			}
+
+			events, err := converters.OpenAIResponsesStreamToAnthropicStream(eventData, isFirst)
+			if err != nil {
+				continue
+			}
+
+			for _, event := range events {
+				c.Response().Write([]byte("event: message\ndata: "))
+				c.Response().Write(event)
+				c.Response().Write([]byte("\n\n"))
+				c.Response().Flush()
+			}
+
+			isFirst = false
+		}
+	}
+
+	return nil
+}
+
+// streamAnthropicFromOpenAIChat streams and converts OpenAI chat completion response to Anthropic format
+func (h *Handler) streamAnthropicFromOpenAIChat(c echo.Context, adapter *adapters.OpenAIAdapter, req *models.ChatCompletionRequest, model string) error {
+	req.Stream = true
+	stream, statusCode, err := adapter.ChatCompletionsStream(c.Request().Context(), req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+	}
+	defer stream.Close()
+
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().WriteHeader(statusCode)
+
+	reader := stream.GetReader()
+	state := converters.NewOpenAIToAnthropicStreamState()
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Read line: %s", line)
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "event:") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "data:") {
+			data := strings.TrimPrefix(line, "data:")
+			data = strings.TrimSpace(data)
+
+			if data == "[DONE]" {
+				break
+			}
+
+			var eventData map[string]interface{}
+			if err := json.Unmarshal([]byte(data), &eventData); err != nil {
+				continue
+			}
+
+			events, err := converters.OpenAIStreamToAnthropicStream(eventData, state)
+			if err != nil {
+				continue
+			}
+
+			for _, event := range events {
+				c.Response().Write([]byte("event: message\ndata: "))
+				c.Response().Write(event)
+				c.Response().Write([]byte("\n\n"))
+				c.Response().Flush()
+			}
 		}
 	}
 
