@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -130,10 +131,34 @@ func (a *OpenAIAdapter) ChatCompletionsStream(ctx context.Context, request inter
 	}
 	log.Printf("[OpenAIAdapter] ChatCompletionsStream opened: statusCode=%d, elapsed=%s", resp.StatusCode, time.Since(start))
 
-	return &StreamReader{
+	streamReader := &StreamReader{
 		reader: bufio.NewReader(resp.Body),
 		body:   resp.Body,
-	}, resp.StatusCode, nil
+	}
+
+	// Start logging stream response in background
+	streamStart := time.Now()
+	go func() {
+		defer func() {
+			log.Printf("[OpenAIAdapter] ChatCompletionsStream completed after %s", time.Since(streamStart))
+		}()
+
+		reader := bufio.NewReader(resp.Body)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err != io.EOF {
+					log.Printf("[OpenAIAdapter] ChatCompletionsStream read error: %v", err)
+				}
+				break
+			}
+			if strings.TrimSpace(line) != "" {
+				log.Printf("[OpenAIAdapter] ChatCompletionsStream response: %s", strings.TrimSpace(line))
+			}
+		}
+	}()
+
+	return streamReader, resp.StatusCode, nil
 }
 
 // StreamReader wraps a streaming response
@@ -190,6 +215,14 @@ func (a *OpenAIAdapter) Responses(ctx context.Context, request interface{}) (map
 		return nil, resp.StatusCode, err
 	}
 
+	// Log response content
+	prettyResponse, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		log.Printf("[OpenAIAdapter] Responses response (raw): %v", result)
+	} else {
+		log.Printf("[OpenAIAdapter] Responses response:\n%s", string(prettyResponse))
+	}
+
 	return result, resp.StatusCode, nil
 }
 
@@ -228,8 +261,32 @@ func (a *OpenAIAdapter) ResponsesStream(ctx context.Context, request interface{}
 	}
 	log.Printf("[OpenAIAdapter] ResponsesStream opened: statusCode=%d, elapsed=%s", resp.StatusCode, time.Since(start))
 
-	return &StreamReader{
+	streamReader := &StreamReader{
 		reader: bufio.NewReader(resp.Body),
 		body:   resp.Body,
-	}, resp.StatusCode, nil
+	}
+
+	// Start logging stream response in background
+	streamStart := time.Now()
+	go func() {
+		defer func() {
+			log.Printf("[OpenAIAdapter] ResponsesStream completed after %s", time.Since(streamStart))
+		}()
+
+		reader := bufio.NewReader(resp.Body)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err != io.EOF {
+					log.Printf("[OpenAIAdapter] ResponsesStream read error: %v", err)
+				}
+				break
+			}
+			if strings.TrimSpace(line) != "" {
+				log.Printf("[OpenAIAdapter] ResponsesStream response: %s", strings.TrimSpace(line))
+			}
+		}
+	}()
+
+	return streamReader, resp.StatusCode, nil
 }
