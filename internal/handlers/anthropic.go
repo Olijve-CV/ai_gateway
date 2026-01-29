@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"ai_gateway/internal/adapters"
 	"ai_gateway/internal/converters"
@@ -262,133 +261,7 @@ func (h *Handler) streamAnthropic(c echo.Context, adapter *adapters.AnthropicAda
 			return err
 		}
 
-		c.Response().Write([]byte(line))
-		c.Response().Flush()
-	}
-
-	return nil
-}
-
-// streamAnthropicFromOpenAIResponses streams and converts OpenAI Responses API response to Anthropic format
-func (h *Handler) streamAnthropicFromOpenAIResponses(c echo.Context, adapter *adapters.OpenAIAdapter, req map[string]interface{}, model string) error {
-	req["stream"] = true
-	stream, statusCode, err := adapter.ResponsesStream(c.Request().Context(), req)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
-	}
-	defer stream.Close()
-
-	middleware.LogTrace(c, "Anthropic->OpenAI", "Starting response stream: statusCode=%d, model=%s", statusCode, model)
-
-	c.Response().Header().Set("Content-Type", "text/event-stream")
-	c.Response().Header().Set("Cache-Control", "no-cache")
-	c.Response().Header().Set("Connection", "keep-alive")
-	middleware.LogTrace(c, "Anthropic->OpenAI", "=== Response Headers ===")
-	for name, values := range c.Response().Header() {
-		for _, value := range values {
-			middleware.LogTrace(c, "Anthropic->OpenAI", "  %s: %s", name, value)
-		}
-	}
-	c.Response().WriteHeader(statusCode)
-
-	reader := stream.GetReader()
-	isFirst := true
-	start := time.Now()
-	lastProgressLog := start
-	var lineCount int
-	var dataLineCount int
-	var byteCount int
-	done := false
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			middleware.LogTrace(c, "Anthropic->OpenAI", "Stream read error after %s: %v (lines=%d, dataLines=%d, bytes=%d)", time.Since(start), err, lineCount, dataLineCount, byteCount)
-			return err
-		}
-
-		lineCount++
-		byteCount += len(line)
-
-		if time.Since(lastProgressLog) >= 5*time.Second {
-			middleware.LogTrace(c, "Anthropic->OpenAI", "Stream progress: elapsed=%s, lines=%d, dataLines=%d, bytes=%d", time.Since(start), lineCount, dataLineCount, byteCount)
-			lastProgressLog = time.Now()
-		}
-
-		trimmedLine := strings.TrimSpace(line)
-		if trimmedLine == "" {
-			continue
-		}
-
-		if strings.HasPrefix(trimmedLine, "data:") {
-			dataLineCount++
-			data := strings.TrimPrefix(trimmedLine, "data:")
-			data = strings.TrimSpace(data)
-
-			if data == "[DONE]" {
-				done = true
-				break
-			}
-
-			var eventData map[string]interface{}
-			if err := json.Unmarshal([]byte(data), &eventData); err != nil {
-				continue
-			}
-
-			events, err := converters.OpenAIResponsesStreamToAnthropicStream(eventData, isFirst)
-			if err != nil {
-				continue
-			}
-
-			for _, event := range events {
-				c.Response().Write([]byte("event: message\ndata: "))
-				c.Response().Write(event)
-				c.Response().Write([]byte("\n\n"))
-				c.Response().Flush()
-			}
-
-			isFirst = false
-		}
-	}
-
-	endReason := "eof"
-	if done {
-		endReason = "done"
-	}
-	middleware.LogTrace(c, "Anthropic->OpenAI", "Stream completed: reason=%s, duration=%s, lines=%d, dataLines=%d, bytes=%d", endReason, time.Since(start), lineCount, dataLineCount, byteCount)
-
-	return nil
-}
-
-// streamAnthropicFromOpenAIChat streams and converts OpenAI chat completion response to Anthropic format
-func (h *Handler) streamAnthropicFromOpenAIChat(c echo.Context, adapter *adapters.OpenAIAdapter, req *models.ChatCompletionRequest, model string) error {
-	req.Stream = true
-	stream, statusCode, err := adapter.ChatCompletionsStream(c.Request().Context(), req)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
-	}
-	defer stream.Close()
-
-	c.Response().Header().Set("Content-Type", "text/event-stream")
-	c.Response().Header().Set("Cache-Control", "no-cache")
-	c.Response().Header().Set("Connection", "keep-alive")
-	c.Response().WriteHeader(statusCode)
-
-	reader := stream.GetReader()
-	state := converters.NewOpenAIToAnthropicStreamState()
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-
+		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Read line: %s", line)
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "event:") {
 			continue
