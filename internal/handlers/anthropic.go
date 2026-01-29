@@ -114,7 +114,7 @@ func (h *Handler) handleAnthropicToAnthropic(c echo.Context, req *models.Message
 func (h *Handler) handleAnthropicToOpenAIChat(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
 	middleware.LogTrace(c, "Anthropic->OpenAIChat", "Converting request to Chat Completions format")
 	openaiReq, err := converters.AnthropicToOpenAIRequest(req)
-	middleware.LogTrace(c, "Anthropic->OpenAIChat-Convertion", "Converted request: %v", openaiReq)
+	middleware.LogTrace(c, "Anthropic->OpenAIChat-Convertion", "Converted request: %s", openaiReq)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())

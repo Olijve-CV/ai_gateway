@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -478,34 +480,75 @@ func (h *Handler) handleOpenAIToGemini(c echo.Context, req *models.ChatCompletio
 	return c.JSON(statusCode, openaiResp)
 }
 
-// streamOpenAI streams response from OpenAI
+// streamOpenAI streams response from OpenAI with enhanced timeout handling
 func (h *Handler) streamOpenAI(c echo.Context, adapter *adapters.OpenAIAdapter, req *models.ChatCompletionRequest) error {
-	stream, statusCode, err := adapter.ChatCompletionsStream(c.Request().Context(), req)
+	// Create a longer timeout context for streaming requests
+	ctx := c.Request().Context()
+	if ctx.Err() == nil {
+		// If no existing timeout, set a reasonable one for streaming
+		timeout := 15 * time.Minute // 15 minutes for streaming
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	stream, statusCode, err := adapter.ChatCompletionsStream(ctx, req)
 	if err != nil {
+		middleware.LogTrace(c, "OpenAI-Stream", "Stream creation failed: %v", err)
 		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
 	}
 	defer stream.Close()
 
+	middleware.LogTrace(c, "OpenAI-Stream", "Stream created successfully, statusCode=%d", statusCode)
+
 	c.Response().Header().Set("Content-Type", "text/event-stream")
 	c.Response().Header().Set("Cache-Control", "no-cache")
 	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+
 	c.Response().WriteHeader(statusCode)
 
 	reader := stream.GetReader()
+	startTime := time.Now()
+	lastActivity := startTime
+	lineCount := 0
+
+	middleware.LogTrace(c, "OpenAI-Stream", "Starting stream reading...")
+
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
+				middleware.LogTrace(c, "OpenAI-Stream", "Stream EOF reached after %s, lines=%d", time.Since(startTime), lineCount)
 				break
 			}
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				middleware.LogTrace(c, "OpenAI-Stream", "Read timeout after %s, last activity: %s", time.Since(startTime), time.Since(lastActivity))
+				break
+			}
+			middleware.LogTrace(c, "OpenAI-Stream", "Read error after %s: %v", time.Since(startTime), err)
 			return err
 		}
 
-		c.Response().Write([]byte(line))
+		lineCount++
+		lastActivity = time.Now()
+
+		// Write the line to response
+		if _, err := c.Response().Write([]byte(line)); err != nil {
+			middleware.LogTrace(c, "OpenAI-Stream", "Failed to write line: %v", err)
+			return err
+		}
+
 		c.Response().Flush()
 
 		if strings.HasPrefix(line, "data: [DONE]") {
+			middleware.LogTrace(c, "OpenAI-Stream", "Stream completed with [DONE] after %s, lines=%d", time.Since(startTime), lineCount)
 			break
+		}
+
+		// Log progress every 100 lines or every 30 seconds
+		if lineCount%100 == 0 || time.Since(lastActivity) > 30*time.Second {
+			middleware.LogTrace(c, "OpenAI-Stream", "Stream progress: elapsed=%s, lines=%d", time.Since(startTime), lineCount)
 		}
 	}
 
