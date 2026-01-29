@@ -114,11 +114,22 @@ func (h *Handler) handleAnthropicToAnthropic(c echo.Context, req *models.Message
 func (h *Handler) handleAnthropicToOpenAIChat(c echo.Context, req *models.MessagesRequest, baseURL, apiKey string) error {
 	middleware.LogTrace(c, "Anthropic->OpenAIChat", "Converting request to Chat Completions format")
 	openaiReq, err := converters.AnthropicToOpenAIRequest(req)
-	middleware.LogTrace(c, "Anthropic->OpenAIChat-Convertion", "Converted request: %s", openaiReq)
 	if err != nil {
 		middleware.LogTrace(c, "Anthropic->OpenAIChat", "Conversion error: %v", err)
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
+
+	// Log conversion details in a structured way
+	var messageCount, maxTokens int
+	if openaiReq != nil {
+		messageCount = len(openaiReq.Messages)
+		if openaiReq.MaxTokens != nil {
+			maxTokens = *openaiReq.MaxTokens
+		}
+	}
+
+	middleware.LogTrace(c, "Anthropic->OpenAIChat-Conversion", "Request converted: messages=%d, max_tokens=%d",
+		messageCount, maxTokens)
 
 	middleware.LogTrace(c, "Anthropic->OpenAIChat", "Creating adapter with baseURL=%s, model=%s", baseURL, req.Model)
 	adapter := adapters.NewOpenAIAdapter(apiKey, baseURL)
