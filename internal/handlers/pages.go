@@ -15,8 +15,8 @@ type TemplateRenderer struct {
 func NewTemplateRenderer(templatesDir string) *TemplateRenderer {
 	templates := template.New("")
 	template.Must(templates.ParseGlob(templatesDir + "/auth/*.html"))
-	template.Must(templates.ParseGlob(templatesDir + "/dashboard/*.html"))
 	template.Must(templates.ParseGlob(templatesDir + "/index.html"))
+	template.Must(templates.ParseGlob(templatesDir + "/dashboard/*.html"))
 	return &TemplateRenderer{templates: templates}
 }
 
