@@ -55,12 +55,12 @@ func (h *Handler) DashboardPage(c echo.Context) error {
 
 // ProvidersPage renders the providers configuration page
 func (h *Handler) ProvidersPage(c echo.Context) error {
-	return c.Render(http.StatusOK, "providers.html", PageData{Title: "Service Configuration"})
+	return c.Render(http.StatusOK, "dashboard/providers.html", PageData{Title: "Service Configuration"})
 }
 
 // KeysPage renders the API keys management page
 func (h *Handler) KeysPage(c echo.Context) error {
-	return c.Render(http.StatusOK, "keys.html", PageData{Title: "API Keys"})
+	return c.Render(http.StatusOK, "dashboard/keys.html", PageData{Title: "API Keys"})
 }
 
 // LogoutPage handles logout and redirects to login
