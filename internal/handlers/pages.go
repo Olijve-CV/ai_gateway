@@ -50,7 +50,7 @@ func (h *Handler) RegisterPage(c echo.Context) error {
 
 // DashboardPage renders the dashboard page
 func (h *Handler) DashboardPage(c echo.Context) error {
-	return c.Render(http.StatusOK, "index.html", PageData{Title: "Dashboard"})
+	return c.Render(http.StatusOK, "dashboard/index.html", PageData{Title: "Dashboard"})
 }
 
 // ProvidersPage renders the providers configuration page
