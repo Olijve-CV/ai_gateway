@@ -60,14 +60,8 @@ func main() {
 	// Initialize handlers
 	h := handlers.New(db, cfg)
 
-	// Root endpoint
-	e.GET("/", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"name":    "AI Gateway",
-			"version": "1.0.0",
-			"status":  "running",
-		})
-	})
+	// Root endpoint - render index page
+	e.GET("/", h.IndexPage)
 
 	// Health check
 	e.GET("/health", func(c echo.Context) error {

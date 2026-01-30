@@ -18,6 +18,7 @@ func NewTemplateRenderer(templatesDir string) *TemplateRenderer {
 	templates := template.New("")
 	template.Must(templates.ParseGlob(templatesDir + "/auth/*.html"))
 	template.Must(templates.ParseGlob(templatesDir + "/dashboard/*.html"))
+	template.Must(templates.ParseGlob(templatesDir + "/index.html"))
 	return &TemplateRenderer{templates: templates}
 }
 
@@ -30,6 +31,11 @@ func (t *TemplateRenderer) Render(w io.Writer, name string, data interface{}, c 
 type PageData struct {
 	Title string
 	User  interface{}
+}
+
+// IndexPage renders the index/landing page
+func (h *Handler) IndexPage(c echo.Context) error {
+	return c.Render(http.StatusOK, "index.html", PageData{Title: "AI Gateway"})
 }
 
 // LoginPage renders the login page
