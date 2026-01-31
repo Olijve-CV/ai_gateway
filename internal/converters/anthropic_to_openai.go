@@ -240,7 +240,7 @@ func OpenAIToAnthropicResponse(resp map[string]interface{}, model string) (*mode
 		return anthropicResp, nil
 	}
 
-	var contentBlocks []models.ContentBlock
+	contentBlocks := make([]models.ContentBlock, 0)
 
 	// Handle content parts
 	switch content := message["content"].(type) {
@@ -250,6 +250,32 @@ func OpenAIToAnthropicResponse(resp map[string]interface{}, model string) (*mode
 				Type: "text",
 				Text: content,
 			})
+		}
+	case []models.ContentPart:
+		for _, part := range content {
+			switch part.Type {
+			case "text":
+				if part.Text != "" {
+					if len(contentBlocks) > 0 && contentBlocks[len(contentBlocks)-1].Type == "text" {
+						contentBlocks[len(contentBlocks)-1].Text += part.Text
+					} else {
+						contentBlocks = append(contentBlocks, models.ContentBlock{
+							Type: "text",
+							Text: part.Text,
+						})
+					}
+				}
+			case "image_url":
+				if part.ImageURL != nil && part.ImageURL.URL != "" {
+					contentBlocks = append(contentBlocks, models.ContentBlock{
+						Type: "image",
+						Source: &models.ImageSource{
+							Type: "base64",
+							Data: part.ImageURL.URL,
+						},
+					})
+				}
+			}
 		}
 	case []interface{}:
 		for _, part := range content {
@@ -261,10 +287,44 @@ func OpenAIToAnthropicResponse(resp map[string]interface{}, model string) (*mode
 			case "text":
 				text := getString(partMap, "text")
 				if text != "" {
-					contentBlocks = append(contentBlocks, models.ContentBlock{
-						Type: "text",
-						Text: text,
-					})
+					if len(contentBlocks) > 0 && contentBlocks[len(contentBlocks)-1].Type == "text" {
+						contentBlocks[len(contentBlocks)-1].Text += text
+					} else {
+						contentBlocks = append(contentBlocks, models.ContentBlock{
+							Type: "text",
+							Text: text,
+						})
+					}
+				}
+			case "image_url":
+				if imageURL, ok := partMap["image_url"].(map[string]interface{}); ok {
+					url := getString(imageURL, "url")
+					if url != "" {
+						contentBlocks = append(contentBlocks, models.ContentBlock{
+							Type: "image",
+							Source: &models.ImageSource{
+								Type: "base64",
+								Data: url,
+							},
+						})
+					}
+				}
+			}
+		}
+	case []map[string]interface{}:
+		for _, partMap := range content {
+			switch getString(partMap, "type") {
+			case "text":
+				text := getString(partMap, "text")
+				if text != "" {
+					if len(contentBlocks) > 0 && contentBlocks[len(contentBlocks)-1].Type == "text" {
+						contentBlocks[len(contentBlocks)-1].Text += text
+					} else {
+						contentBlocks = append(contentBlocks, models.ContentBlock{
+							Type: "text",
+							Text: text,
+						})
+					}
 				}
 			case "image_url":
 				if imageURL, ok := partMap["image_url"].(map[string]interface{}); ok {

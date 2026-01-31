@@ -3,6 +3,7 @@ package converters
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"ai_gateway/internal/models"
@@ -63,9 +64,9 @@ func OpenAIToAnthropicRequest(req *models.ChatCompletionRequest) (*models.Messag
 		if msg.Role == "tool" {
 			anthropicMsg.Role = "user"
 			anthropicMsg.Content = []models.ContentBlock{{
-				Type:      "tool_result",
-				ID:        msg.ToolCallID,
-				Content:   msg.Content,
+				Type:    "tool_result",
+				ID:      msg.ToolCallID,
+				Content: msg.Content,
 			}}
 		} else {
 			textContent, imageBlocks := extractOpenAIContentParts(msg.Content)
@@ -184,61 +185,93 @@ func AnthropicToOpenAIResponse(resp map[string]interface{}, model string) (*mode
 	var message models.ChatMessage
 	message.Role = "assistant"
 
-	var textContent string
+	var contentParts []interface{}
 	var toolCalls []models.ToolCall
+	allText := true
+	var textBuilder strings.Builder
 
 	switch contentVal := content.(type) {
 	case string:
-		textContent = contentVal
-	case []interface{}:
-		for _, block := range contentVal {
-			if blockMap, ok := block.(map[string]interface{}); ok {
-				blockType := getString(blockMap, "type")
-				if blockType == "text" {
-					textContent += getString(blockMap, "text")
-				} else if blockType == "tool_use" {
-					argsBytes, _ := json.Marshal(blockMap["input"])
-					toolCalls = append(toolCalls, models.ToolCall{
-						ID:   getString(blockMap, "id"),
-						Type: "function",
-						Function: models.FunctionCall{
-							Name:      getString(blockMap, "name"),
-							Arguments: string(argsBytes),
-						},
+		if contentVal != "" {
+			textBuilder.WriteString(contentVal)
+			contentParts = append(contentParts, map[string]interface{}{
+				"type": "text",
+				"text": contentVal,
+			})
+		}
+	default:
+		blocks := normalizeAnthropicBlocks(contentVal)
+		for _, block := range blocks {
+			switch block.Type {
+			case "text":
+				if block.Text != "" {
+					textBuilder.WriteString(block.Text)
+					contentParts = append(contentParts, map[string]interface{}{
+						"type": "text",
+						"text": block.Text,
 					})
 				}
+			case "image":
+				allText = false
+				if block.Source != nil {
+					url := getString(block.Source, "data")
+					if url != "" {
+						contentParts = append(contentParts, map[string]interface{}{
+							"type": "image_url",
+							"image_url": map[string]interface{}{
+								"url": url,
+							},
+						})
+					}
+				}
+			case "tool_use":
+				argsBytes, _ := json.Marshal(block.Input)
+				toolCalls = append(toolCalls, models.ToolCall{
+					ID:   block.ID,
+					Type: "function",
+					Function: models.FunctionCall{
+						Name:      block.Name,
+						Arguments: string(argsBytes),
+					},
+				})
 			}
 		}
 	}
 
-	if textContent != "" {
-		message.Content = textContent
+	if len(contentParts) > 0 {
+		if allText {
+			message.Content = textBuilder.String()
+		} else {
+			message.Content = contentParts
+		}
 	}
 	if len(toolCalls) > 0 {
 		message.ToolCalls = toolCalls
 	}
 
 	// Convert stop reason
-	var finishReason string
+	var finishReason *string
 	if stopReason, ok := resp["stop_reason"].(string); ok {
-	switch stopReason {
-	case "end_turn":
-		finishReason = "stop"
-	case "max_tokens":
-		finishReason = "length"
-	case "stop_sequence":
-		finishReason = "stop"
-	case "tool_use":
-		finishReason = "tool_calls"
-	default:
-		finishReason = stopReason
-	}
+		mapped := stopReason
+		switch stopReason {
+		case "end_turn":
+			mapped = "stop"
+		case "max_tokens":
+			mapped = "length"
+		case "stop_sequence":
+			mapped = "stop"
+		case "tool_use":
+			mapped = "tool_calls"
+		}
+		if mapped != "" {
+			finishReason = &mapped
+		}
 	}
 
 	openaiResp.Choices = []models.Choice{{
 		Index:        0,
 		Message:      &message,
-		FinishReason: &finishReason,
+		FinishReason: finishReason,
 	}}
 
 	// Convert usage
@@ -340,18 +373,18 @@ func AnthropicStreamToOpenAIStream(eventType string, data map[string]interface{}
 		stopReason := getString(delta, "stop_reason")
 
 		var finishReason string
-	switch stopReason {
-	case "end_turn":
-		finishReason = "stop"
-	case "max_tokens":
-		finishReason = "length"
-	case "stop_sequence":
-		finishReason = "stop"
-	case "tool_use":
-		finishReason = "tool_calls"
-	default:
-		finishReason = stopReason
-	}
+		switch stopReason {
+		case "end_turn":
+			finishReason = "stop"
+		case "max_tokens":
+			finishReason = "length"
+		case "stop_sequence":
+			finishReason = "stop"
+		case "tool_use":
+			finishReason = "tool_calls"
+		default:
+			finishReason = stopReason
+		}
 
 		chunk := models.ChatCompletionChunk{
 			ID:      id,
