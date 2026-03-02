@@ -42,6 +42,11 @@ type APIKeyUpdateRequest struct {
 	MonthlyTokenLimit   *int       `json:"monthly_token_limit"`
 }
 
+// APIKeyRotateRequest represents an API key rotation request
+type APIKeyRotateRequest struct {
+	RevokeOld bool `json:"revoke_old"`
+}
+
 // APIKeyResponse represents an API key response
 type APIKeyResponse struct {
 	ID                  uint                 `json:"id"`
@@ -251,4 +256,36 @@ func (h *Handler) GetAPIKeyUsage(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, stats)
+}
+
+// RotateAPIKey rotates an API key - generates a new key
+func (h *Handler) RotateAPIKey(c echo.Context) error {
+	user := middleware.GetUser(c)
+	if user == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not authenticated")
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid key ID")
+	}
+
+	var req APIKeyRotateRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	serviceReq := &services.APIKeyRotate{
+		RevokeOld: req.RevokeOld,
+	}
+
+	key, fullKey, err := h.apiKeyService.RotateAPIKey(user.ID, uint(id), serviceReq)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, APIKeyCreateResponse{
+		APIKeyResponse: toAPIKeyResponse(key),
+		Key:            fullKey,
+	})
 }

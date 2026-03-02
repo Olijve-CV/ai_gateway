@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"ai_gateway/internal/config"
@@ -20,6 +21,22 @@ import (
 )
 
 func main() {
+	// Setup logging to file
+	logDir := "logs"
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		log.Fatalf("Failed to create logs directory: %v", err)
+	}
+
+	logFileName := filepath.Join(logDir, fmt.Sprintf("app_%s.log", time.Now().Format("2006-01-02")))
+	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer logFile.Close()
+
+	log.SetOutput(logFile)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	// Load .env file if it exists
 	if err := godotenv.Load(); err != nil {
 		log.Printf("No .env file found or error loading: %v", err)
@@ -94,6 +111,7 @@ func main() {
 	keysGroup.POST("", h.CreateAPIKey)
 	keysGroup.GET("/:id", h.GetAPIKey)
 	keysGroup.PUT("/:id", h.UpdateAPIKey)
+	keysGroup.POST("/:id/rotate", h.RotateAPIKey)
 	keysGroup.DELETE("/:id", h.DeleteAPIKey)
 	keysGroup.GET("/:id/usage", h.GetAPIKeyUsage)
 

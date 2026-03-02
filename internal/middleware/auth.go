@@ -288,11 +288,11 @@ func LogHeaders(c echo.Context, tag string) {
 func LogRequestBody(c echo.Context, tag string, body interface{}) {
 	traceID := GetTraceID(c)
 	prefix := "[" + traceID + "] [" + tag + "] "
-	jsonBytes, err := json.MarshalIndent(body, "", "  ")
+	_, err := json.MarshalIndent(body, "", "  ")
 	if err != nil {
 		log.Printf(prefix+"Failed to marshal request body: %v", err)
 		return
 	}
-	log.Printf(prefix + "=== Request Body ===")
-	log.Printf(prefix + string(jsonBytes))
+	log.Printf(prefix + "=== Request AI Body ===")
+// 	log.Printf(prefix + string(jsonBytes))
 }

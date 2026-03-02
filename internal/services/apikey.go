@@ -45,6 +45,11 @@ type APIKeyUpdate struct {
 	MonthlyTokenLimit   *int       `json:"monthly_token_limit"`
 }
 
+// APIKeyRotate represents a request to rotate an API key
+type APIKeyRotate struct {
+	RevokeOld bool `json:"revoke_old"` // whether to revoke the old key immediately
+}
+
 // APIKeyUsageStats represents usage statistics for an API key
 type APIKeyUsageStats struct {
 	DailyRequestsUsed   int                    `json:"daily_requests_used"`
@@ -192,6 +197,56 @@ func (s *APIKeyService) UpdateAPIKey(userID, keyID uint, req *APIKeyUpdate) (*da
 	}
 
 	return s.GetAPIKeyByID(userID, keyID)
+}
+
+// RotateAPIKey rotates an API key - generates a new key while optionally revoking the old one
+func (s *APIKeyService) RotateAPIKey(userID, keyID uint, req *APIKeyRotate) (*database.APIKey, string, error) {
+	// Get the old key
+	oldKey, err := s.GetAPIKeyByID(userID, keyID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Generate new API key
+	fullKey, keyHash, keyPrefix, err := s.GenerateAPIKey()
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Copy settings from old key to new key
+	now := time.Now()
+	newKey := &database.APIKey{
+		UserID:              userID,
+		Name:                oldKey.Name,
+		KeyHash:             keyHash,
+		KeyPrefix:           keyPrefix,
+		ExpiresAt:           oldKey.ExpiresAt,
+		IsActive:            true,
+		DailyRequestLimit:   oldKey.DailyRequestLimit,
+		MonthlyRequestLimit: oldKey.MonthlyRequestLimit,
+		DailyTokenLimit:     oldKey.DailyTokenLimit,
+		MonthlyTokenLimit:   oldKey.MonthlyTokenLimit,
+		DailyResetAt:        now.Add(24 * time.Hour),
+		MonthlyResetAt:      now.AddDate(0, 1, 0),
+		ProviderConfigs:     oldKey.ProviderConfigs,
+	}
+
+	// Create the new key
+	if err := s.db.Create(newKey).Error; err != nil {
+		return nil, "", err
+	}
+
+	// Optionally revoke the old key
+	if req.RevokeOld {
+		if err := s.db.Model(oldKey).Update("is_active", false).Error; err != nil {
+			return nil, "", err
+		}
+	}
+
+	// Reload provider configs for the new key
+	s.db.Preload("ProviderConfigs").First(newKey, newKey.ID)
+
+	return newKey, fullKey, nil
 }
 
 // DeleteAPIKey deletes an API key
