@@ -1,11 +1,13 @@
 package adapters
 
 import (
-	"bufio"
+"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 )
 
@@ -78,10 +80,25 @@ func (a *AnthropicAdapter) MessagesStream(ctx context.Context, request interface
 	req.Header.Set("anthropic-version", "2023-06-01")
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := a.client.Do(req)
+resp, err := a.client.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
+
+	log.Printf("[Anthropic Stream] Request sent, Response Status: %d", resp.StatusCode)
+
+	// Read and log the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	log.Printf("[Anthropic Stream] Response Body: %s", string(bodyBytes))
+
+	// Create reader from the body bytes for streaming
+	return &StreamReader{
+		reader: bufio.NewReader(bytes.NewReader(bodyBytes)),
+		body:   io.NopCloser(bytes.NewReader(bodyBytes)),
+	}, resp.StatusCode, nil
 
 	return &StreamReader{
 		reader: bufio.NewReader(resp.Body),

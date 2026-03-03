@@ -1,8 +1,9 @@
 package handlers
 
 import (
-	"encoding/json"
+"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -13,6 +14,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 )
+
+
 
 // GeminiGenerateContent handles POST /v1/models/:model
 func (h *Handler) GeminiGenerateContent(c echo.Context) error {
@@ -387,10 +390,6 @@ func (h *Handler) streamGeminiFromAnthropic(c echo.Context, adapter *adapters.An
 			continue
 		}
 
-		if strings.HasPrefix(line, "event:") {
-			continue
-		}
-
 		if strings.HasPrefix(line, "data:") {
 			data := strings.TrimPrefix(line, "data:")
 			data = strings.TrimSpace(data)
@@ -405,6 +404,13 @@ func (h *Handler) streamGeminiFromAnthropic(c echo.Context, adapter *adapters.An
 			}
 
 			eventType, _ := eventData["type"].(string)
+			log.Printf("[Anthropic Stream Response] type=%s, data=%s", eventType, data)
+
+			// Print pretty JSON
+			if jsonBytes, err := json.MarshalIndent(eventData, "", "  "); err == nil {
+				log.Printf("[Anthropic Stream Response] JSON: %s", string(jsonBytes))
+			}
+
 			chunk, err := converters.AnthropicStreamToGeminiStream(eventType, eventData)
 			if err != nil || chunk == nil {
 				continue
