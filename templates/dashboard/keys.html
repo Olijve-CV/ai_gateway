@@ -1366,10 +1366,14 @@
                             </div>
                         </div>
                         <div class="key-card-actions">
-                            <button class="btn btn-sm btn-outline" onclick="viewUsage(${key.id})">
+<button class="btn btn-sm btn-outline" onclick="viewUsage(${key.id})">
                                 <span class="btn-icon">&#128202;</span>
                                 统计
                             </button>
+                            <button class="btn btn-sm btn-outline" onclick="rotateKey(${key.id})">
+                                <span class="btn-icon">&#128260;</span>
+                                轮换
+</button>
                             <button class="btn btn-sm btn-outline" onclick="editKey(${key.id})">
                                 <span class="btn-icon">&#9998;</span>
                                 编辑
@@ -1763,7 +1767,43 @@
         } catch (error) {
             showMessage('操作失败', 'error');
         }
+}
     }
+
+    async function rotateKey(id) {
+        const key = allKeys.find(k => k.id === id);
+        if (!key) return;
+
+        const revokeOld = confirm('是否立即吊销旧 Key？\n\n点击"确定"：立即禁用旧 Key\n点击"取消"：保留旧 Key（可用于平滑迁移）');
+
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`/api/keys/${id}/rotate`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ revoke_old: revokeOld })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                loadData();
+                showMessage('Key 轮换成功', 'success');
+                newKeyValue = result.key;
+                document.getElementById('new-key-value').textContent = result.key;
+                document.getElementById('new-key-modal').style.display = 'flex';
+            } else {
+                const err = await response.json();
+                showMessage(err.message || '轮换失败', 'error');
+            }
+        } catch (error) {
+            showMessage('网络错误', 'error');
+        }
+    }
+
+    async function deleteKey(id) {
 
     async function deleteKey(id) {
         if (!confirm('确定要删除这个 API Key 吗？此操作不可恢复。')) return;

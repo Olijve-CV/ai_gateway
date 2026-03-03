@@ -37,9 +37,14 @@ func main() {
 	log.SetOutput(logFile)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		log.Printf("No .env file found or error loading: %v", err)
+	// Load .env file from executable directory, fallback to current directory
+	execPath, _ := os.Executable()
+	dir := filepath.Dir(execPath)
+	if err := godotenv.Load(filepath.Join(dir, ".env")); err != nil {
+		// Try current directory as fallback
+		if err := godotenv.Load(".env"); err != nil {
+			log.Printf("Warning: No .env file found: %v", err)
+		}
 	}
 
 	// Load configuration

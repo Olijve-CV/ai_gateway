@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"log"
 	"os"
 
@@ -52,13 +53,9 @@ func Load() (*Config, error) {
 		cfg.JWTSecret = secret
 	}
 
-	// Generate encryption key if not set
+	// ENCRYPTION_KEY is required and must be stable across restarts
 	if cfg.EncryptionKey == "" {
-		key, err := generateRandomBytes(32)
-		if err != nil {
-			return nil, err
-		}
-		cfg.EncryptionKey = base64.StdEncoding.EncodeToString(key)
+		return nil, errors.New("ENCRYPTION_KEY environment variable is required - generate with: openssl rand -base64 32")
 	}
 
 	// Ensure data directory exists
